@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
     private var currentMode: PowerMode = PowerMode.BALANCED
     private var pendingUrl: String? = null
     private var lastKnownUrl: String? = null
-    private var foreground = false
+    private var visibleToUser = false
     private var fileCallback: ValueCallback<Array<Uri>>? = null
 
     private val fileChooserLauncher = registerForActivityResult(
@@ -66,12 +66,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        foreground = true
+    override fun onStart() {
+        super.onStart()
+        visibleToUser = true
         RuntimeDiagnostics.logLifecycle(
             this,
-            "foreground",
+            "visible",
             currentMode,
             lastKnownUrl ?: currentInstance?.origin,
         )
@@ -85,16 +85,16 @@ class MainActivity : ComponentActivity() {
         webView?.let { powerController.onForeground(it, currentMode) }
     }
 
-    override fun onPause() {
-        foreground = false
+    override fun onStop() {
         RuntimeDiagnostics.logLifecycle(
             this,
-            "background",
+            "hidden",
             currentMode,
             lastKnownUrl ?: currentInstance?.origin,
         )
         webView?.let { powerController.onBackground(it) }
-        super.onPause()
+        visibleToUser = false
+        super.onStop()
     }
 
     override fun onDestroy() {
@@ -195,7 +195,7 @@ class MainActivity : ComponentActivity() {
 
         setContentView(root)
         created.loadUrl(url)
-        if (foreground) powerController.onForeground(created, currentMode)
+        if (visibleToUser) powerController.onForeground(created, currentMode)
     }
 
     private fun handleRendererGone(deadView: WebView, detail: RenderProcessGoneDetail) {
@@ -211,7 +211,7 @@ class MainActivity : ComponentActivity() {
         val reason = if (detail.didCrash()) "Web renderer crashed." else "Web renderer was reclaimed."
         Toast.makeText(this, "$reason Restoring Misskey…", Toast.LENGTH_SHORT).show()
 
-        if (foreground && restoreUrl != null) {
+        if (visibleToUser && restoreUrl != null) {
             showBrowser(restoreUrl)
             pendingUrl = null
         }
