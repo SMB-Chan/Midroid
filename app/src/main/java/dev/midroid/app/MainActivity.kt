@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
@@ -15,10 +16,15 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import dev.midroid.app.config.AppPreferences
 import dev.midroid.app.config.InstanceConfig
 import dev.midroid.app.diagnostics.RuntimeDiagnostics
@@ -35,7 +41,7 @@ class MainActivity : ComponentActivity() {
     private val powerController = WebViewPowerController()
 
     private var webView: WebView? = null
-    private var browserRoot: FrameLayout? = null
+    private var browserRoot: LinearLayout? = null
     private var currentInstance: InstanceConfig? = null
     private var currentMode: PowerMode = PowerMode.BALANCED
     private var pendingUrl: String? = null
@@ -53,6 +59,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         preferences = AppPreferences(this)
         installBackHandler()
 
@@ -139,7 +146,7 @@ class MainActivity : ComponentActivity() {
                 errorView.visibility = android.view.View.VISIBLE
             }
         }
-        setContentView(screen)
+        setInsetContentView(screen)
     }
 
     private fun copyDiagnostics() {
@@ -158,7 +165,9 @@ class MainActivity : ComponentActivity() {
         destroyWebView()
         lastKnownUrl = url
 
-        val root = FrameLayout(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
         browserRoot = root
 
         val created = WebViewFactory.create(this)
@@ -182,11 +191,6 @@ class MainActivity : ComponentActivity() {
             enqueueDownload(downloadUrl, userAgent, contentDisposition, mimeType)
         }
 
-        root.addView(created, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT,
-        ))
-
         val settingsButton = Button(this).apply {
             text = "⚙"
             contentDescription = getString(R.string.settings)
@@ -194,20 +198,32 @@ class MainActivity : ComponentActivity() {
             alpha = 0.72f
             setTextColor(Color.WHITE)
             setBackgroundColor(0xAA202124.toInt())
-            minWidth = dp(44)
-            minimumWidth = dp(44)
-            minHeight = dp(44)
-            minimumHeight = dp(44)
+            minWidth = dp(48)
+            minimumWidth = dp(48)
+            minHeight = dp(48)
+            minimumHeight = dp(48)
             setPadding(0, 0, 0, 0)
             setOnClickListener { showSetup() }
         }
-        root.addView(settingsButton, FrameLayout.LayoutParams(dp(44), dp(44)).apply {
-            gravity = Gravity.TOP or Gravity.END
-            topMargin = dp(8)
-            marginEnd = dp(8)
-        })
+        // Reserve native controls their own space: an overlay blocks Misskey's tabs.
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(this@MainActivity).apply {
+                text = getString(R.string.app_name)
+                textSize = 16f
+                setPadding(dp(16), 0, 0, 0)
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(settingsButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+        }
+        root.addView(toolbar, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(48),
+        ))
+        root.addView(created, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f,
+        ))
 
-        setContentView(root)
+        setInsetContentView(root)
         created.loadUrl(url)
         if (visibleToUser) powerController.onForeground(this, created, currentMode)
     }
@@ -288,6 +304,25 @@ class MainActivity : ComponentActivity() {
         active.destroy()
         webView = null
         browserRoot = null
+    }
+
+    private fun setInsetContentView(content: View) {
+        val container = FrameLayout(this)
+        container.addView(content, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+        ))
+        ViewCompat.setOnApplyWindowInsetsListener(container) { view, windowInsets ->
+            val insets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime(),
+            )
+            view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
+            // The native container owns the safe area; do not inset the WebView twice.
+            WindowInsetsCompat.CONSUMED
+        }
+        setContentView(container)
+        ViewCompat.requestApplyInsets(container)
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
