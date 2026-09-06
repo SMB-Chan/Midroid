@@ -4,6 +4,7 @@ import android.app.Activity
 import android.graphics.Typeface
 import android.view.Gravity
 import android.view.View
+import android.webkit.WebView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -92,9 +93,21 @@ class SetupScreen(
         ).apply { topMargin = dp(24) })
 
         content.addView(TextView(activity).apply {
-            text = "Midroid stores the selected instance and login cookies locally. HTTPS is required. External links open in your default browser."
+            val provider = WebView.getCurrentWebViewPackage()
+            val providerText = if (provider == null) {
+                "WebView provider: unavailable"
+            } else {
+                "WebView provider: ${provider.packageName} ${provider.versionName ?: "unknown"}"
+            }
+            text = providerText
             textSize = 12f
             setPadding(0, dp(20), 0, 0)
+        }, matchWrap())
+
+        content.addView(TextView(activity).apply {
+            text = "Midroid stores the selected instance and login cookies locally. HTTPS is required. External links open in your default browser."
+            textSize = 12f
+            setPadding(0, dp(8), 0, 0)
         }, matchWrap())
 
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
