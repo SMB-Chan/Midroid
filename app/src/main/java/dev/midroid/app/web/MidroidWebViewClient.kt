@@ -1,7 +1,6 @@
 package dev.midroid.app.web
 
 import android.graphics.Bitmap
-import android.net.Uri
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -18,12 +17,14 @@ class MidroidWebViewClient(
 
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
         if (!request.isForMainFrame) return false
-        return route(request.url)
-    }
+        val uri = request.url
+        val scheme = uri.scheme?.lowercase()
+        if (scheme == "https" && instance.owns(uri.toString())) {
+            return false
+        }
 
-    @Deprecated("Compatibility for legacy WebView callbacks")
-    override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-        return route(Uri.parse(url))
+        externalNavigator.open(uri)
+        return true
     }
 
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
@@ -38,16 +39,6 @@ class MidroidWebViewClient(
 
     override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
         onRendererGone(view, detail)
-        return true
-    }
-
-    private fun route(uri: Uri): Boolean {
-        val scheme = uri.scheme?.lowercase()
-        if (scheme == "https" && instance.owns(uri.toString())) {
-            return false
-        }
-
-        externalNavigator.open(uri)
         return true
     }
 }
