@@ -20,6 +20,7 @@ The first stage deliberately **does not fork Chromium**. It uses Android System 
 - Authenticated HTTPS downloads through Android DownloadManager.
 - Cleartext traffic disabled; SSL errors are never bypassed.
 - Privacy-safe `MidroidDiag` lifecycle/renderer logging for power experiments.
+- Settings-screen diagnostic copy containing only device/WebView version, selected power mode, power-saver state and the sanitized Misskey origin.
 - Reproducible ADB capture tooling for Chrome/PWA vs Midroid comparisons.
 
 ## Build
