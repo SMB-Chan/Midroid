@@ -43,7 +43,7 @@ Run:
 gradle lint testDebugUnitTest assembleDebug
 ```
 
-The debug APK is produced under `app/build/outputs/apk/debug/`. GitHub Actions always uploads a `Midroid-ci-debug-apk` verification artifact. When the four stable signing secrets documented in `docs/UPDATES.md` are configured, CI also uploads `Midroid-update-apk`; use that update track for installations that must keep login state between versions.
+The debug APK is produced under `app/build/outputs/apk/debug/`. GitHub Actions always uploads a `Midroid-ci-debug-apk` verification artifact. When the four stable signing secrets documented in `docs/UPDATES.md` are configured, CI also uploads `Midroid-update-apk`; use that update track for installations that must keep login state between versions. Until those secrets are configured, the update-compatible artifact is intentionally skipped rather than being mislabeled as safe for in-place updates.
 
 Every CI artifact includes an APK SHA-256 file and `apksigner --print-certs` output so the signing identity can be checked between builds. CI also assigns a monotonically increasing `versionCode` from the workflow run number.
 
