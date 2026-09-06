@@ -16,12 +16,16 @@ The first stage deliberately **does not fork Chromium**. It uses Android System 
 - Renderer priority policy with `onRenderProcessGone` recovery.
 - Eco reduced-motion and autoplay suppression.
 - Eco 60 Hz frame-rate hint: View-level request on Android 15/API 35, propagated through the WebView hierarchy on Android 16/API 36+, with a window-level refresh-rate hint on Android 8-14.
+- Density-aware WebView text scaling with Auto and fixed zoom choices.
+- Larger standards-respecting HTTP cache quota on supported WebView versions, plus BFCache and service-worker cache-policy tuning.
+- Interruptible media loading: Android Back cancels in-flight WebView loading before navigating away and tracks Misskey lightbox history.
 - File picker support for Misskey attachments.
 - Authenticated HTTPS downloads through Android DownloadManager.
 - Cleartext traffic disabled; SSL errors are never bypassed.
 - Privacy-safe `MidroidDiag` lifecycle/renderer logging for power experiments.
 - Settings-screen diagnostic copy containing only device/WebView version, selected power mode, power-saver state and the sanitized Misskey origin.
 - Reproducible ADB capture tooling for Chrome/PWA vs Midroid comparisons, including an automated background scenario.
+- Optional stable CI signing track for update-compatible APKs that preserve Android app data and WebView login state across in-place updates.
 
 ## Build
 
@@ -39,7 +43,9 @@ Run:
 gradle lint testDebugUnitTest assembleDebug
 ```
 
-The debug APK is produced under `app/build/outputs/apk/debug/`. GitHub Actions also uploads it as the `Midroid-debug-apk` workflow artifact after every successful verification run.
+The debug APK is produced under `app/build/outputs/apk/debug/`. GitHub Actions always uploads a `Midroid-ci-debug-apk` verification artifact. When the stable signing secrets are configured, CI also uploads `Midroid-update-apk`; use that update track for installations that must keep login state between versions.
+
+See `docs/UPDATES.md` before installing the stable update track. Historical CI debug builds used temporary runner signing identities, so the first migration to the stable signing key can require one reinstall; later stable-track APKs update in place.
 
 ## Measure before forking Chromium
 
@@ -68,4 +74,4 @@ Forking Chromium immediately would make Midroid responsible for fast-moving brow
 
 Native notifications are intentionally kept as a separate subsystem. Current Misskey already emits standard Web Push; Midroid's compatibility target is a standards-compatible subscription endpoint rather than a permanent background WebSocket. See `docs/NOTIFICATIONS.md`.
 
-See `docs/ARCHITECTURE.md`, `docs/POWER_POLICY.md`, `docs/LIFECYCLE.md`, `docs/BENCHMARKING.md` and `docs/NOTIFICATIONS.md` for the design boundaries and measurement plan.
+See `docs/ARCHITECTURE.md`, `docs/POWER_POLICY.md`, `docs/LIFECYCLE.md`, `docs/BENCHMARKING.md`, `docs/NOTIFICATIONS.md` and `docs/UPDATES.md` for the design boundaries and measurement plan.
