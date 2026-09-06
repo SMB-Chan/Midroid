@@ -2,7 +2,7 @@ package dev.midroid.app.power
 
 import android.app.Activity
 import android.os.Build
-import android.view.Surface
+import android.view.View
 import android.webkit.WebView
 
 class WebViewPowerController {
@@ -46,13 +46,19 @@ class WebViewPowerController {
     }
 
     private fun applyRefreshRatePreference(activity: Activity, webView: WebView, mode: PowerMode) {
-        val requestedRate = if (mode == PowerMode.ECO) 60f else 0f
+        val requestedRate = if (mode == PowerMode.ECO) {
+            60f
+        } else {
+            View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
+        }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            webView.setFrameRate(
-                requestedRate,
-                Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
-            )
+        if (Build.VERSION.SDK_INT >= 36) {
+            webView.propagateRequestedFrameRate(requestedRate, true)
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            webView.setRequestedFrameRate(requestedRate)
             return
         }
 
@@ -60,7 +66,7 @@ class WebViewPowerController {
         val params = activity.window.attributes
         @Suppress("DEPRECATION")
         run {
-            params.preferredRefreshRate = requestedRate
+            params.preferredRefreshRate = if (mode == PowerMode.ECO) 60f else 0f
             activity.window.attributes = params
         }
     }
