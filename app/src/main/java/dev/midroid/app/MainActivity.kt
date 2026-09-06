@@ -30,11 +30,13 @@ import dev.midroid.app.ui.SetupScreen
 import dev.midroid.app.web.ExternalNavigator
 import dev.midroid.app.web.MidroidWebChromeClient
 import dev.midroid.app.web.MidroidWebViewClient
+import dev.midroid.app.web.NavigationState
 import dev.midroid.app.web.WebViewFactory
 
 class MainActivity : ComponentActivity() {
     private lateinit var preferences: AppPreferences
     private val powerController = WebViewPowerController()
+    private val navigationState = NavigationState()
 
     private var webView: WebView? = null
     private var browserRoot: FrameLayout? = null
@@ -79,7 +81,7 @@ class MainActivity : ComponentActivity() {
             this,
             "visible",
             currentMode,
-            lastKnownUrl ?: currentInstance?.origin,
+            navigationState.currentUrl ?: lastKnownUrl ?: currentInstance?.origin,
         )
 
         if (webView == null && pendingUrl != null && currentInstance != null) {
@@ -96,7 +98,7 @@ class MainActivity : ComponentActivity() {
             this,
             "hidden",
             currentMode,
-            lastKnownUrl ?: currentInstance?.origin,
+            navigationState.currentUrl ?: lastKnownUrl ?: currentInstance?.origin,
         )
         webView?.let { powerController.onBackground(it) }
         visibleToUser = false
@@ -117,8 +119,7 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val active = webView
-                if (active != null && active.canGoBack()) {
-                    active.goBack()
+                if (active != null && handleInterruptibleWebBack(active)) {
                     return
                 }
 
@@ -127,6 +128,32 @@ class MainActivity : ComponentActivity() {
                 isEnabled = true
             }
         })
+    }
+
+    private fun handleInterruptibleWebBack(active: WebView): Boolean {
+        val canGoBack = active.canGoBack()
+        val shouldInterrupt = canGoBack ||
+            navigationState.mainFrameLoading ||
+            navigationState.isMisskeyLightboxOpen()
+        if (!shouldInterrupt) return false
+
+        // Cancel outstanding page/image requests first. Back navigation must never wait for
+        // a large media response to finish before the user can leave the current surface.
+        val fallbackUrl = navigationState.interruptedReturnUrl()
+        active.stopLoading()
+        navigationState.onLoadCancelled()
+
+        if (canGoBack) {
+            active.goBack()
+            return true
+        }
+
+        if (!fallbackUrl.isNullOrBlank() && currentInstance?.owns(fallbackUrl) == true) {
+            active.loadUrl(fallbackUrl)
+            return true
+        }
+
+        return false
     }
 
     private fun showSetup() {
@@ -157,7 +184,7 @@ class MainActivity : ComponentActivity() {
         val text = RuntimeDiagnostics.buildSnapshot(
             this,
             currentMode,
-            lastKnownUrl ?: currentInstance?.origin,
+            navigationState.currentUrl ?: lastKnownUrl ?: currentInstance?.origin,
         )
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("Midroid diagnostics", text))
@@ -168,6 +195,7 @@ class MainActivity : ComponentActivity() {
         val instance = currentInstance ?: return
         destroyWebView()
         lastKnownUrl = url
+        navigationState.reset(url)
 
         val root = FrameLayout(this)
         browserRoot = root
@@ -182,9 +210,15 @@ class MainActivity : ComponentActivity() {
         created.webViewClient = MidroidWebViewClient(
             instance = instance,
             externalNavigator = externalNavigator,
-            onMainFrameUrlChanged = { lastKnownUrl = it },
-            onPageReady = { view ->
-                RuntimeDiagnostics.logPageReady(this, currentMode, lastKnownUrl)
+            onMainFrameLoadStarted = { navigationState.onPageStarted(it) },
+            onMainFrameCommitted = { committedUrl ->
+                navigationState.onPageCommitted(committedUrl)
+                lastKnownUrl = committedUrl
+            },
+            onHistoryChanged = { navigationState.onHistoryChanged(it) },
+            onPageReady = { view, finishedUrl ->
+                navigationState.onPageFinished(finishedUrl)
+                RuntimeDiagnostics.logPageReady(this, currentMode, navigationState.currentUrl ?: lastKnownUrl)
                 powerController.onPageReady(this, view, currentMode)
             },
             onRendererGone = ::handleRendererGone,
@@ -231,7 +265,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleRendererGone(deadView: WebView, detail: RenderProcessGoneDetail) {
-        val restoreUrl = lastKnownUrl ?: currentInstance?.origin
+        val restoreUrl = navigationState.lastCommittedUrl ?: lastKnownUrl ?: currentInstance?.origin
         RuntimeDiagnostics.logRendererGone(this, currentMode, restoreUrl, detail)
 
         val root = browserRoot

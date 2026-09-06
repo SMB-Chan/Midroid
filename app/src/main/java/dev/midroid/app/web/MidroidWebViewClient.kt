@@ -10,8 +10,10 @@ import dev.midroid.app.config.InstanceConfig
 class MidroidWebViewClient(
     private val instance: InstanceConfig,
     private val externalNavigator: ExternalNavigator,
-    private val onMainFrameUrlChanged: (String) -> Unit,
-    private val onPageReady: (WebView) -> Unit,
+    private val onMainFrameLoadStarted: (String) -> Unit,
+    private val onMainFrameCommitted: (String) -> Unit,
+    private val onHistoryChanged: (String) -> Unit,
+    private val onPageReady: (WebView, String) -> Unit,
     private val onRendererGone: (WebView, RenderProcessGoneDetail) -> Unit,
 ) : WebViewClient() {
 
@@ -29,12 +31,22 @@ class MidroidWebViewClient(
 
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
-        onMainFrameUrlChanged(url)
+        onMainFrameLoadStarted(url)
+    }
+
+    override fun onPageCommitVisible(view: WebView, url: String) {
+        super.onPageCommitVisible(view, url)
+        onMainFrameCommitted(url)
+    }
+
+    override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+        super.doUpdateVisitedHistory(view, url, isReload)
+        onHistoryChanged(url)
     }
 
     override fun onPageFinished(view: WebView, url: String) {
         super.onPageFinished(view, url)
-        onPageReady(view)
+        onPageReady(view, url)
     }
 
     override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
