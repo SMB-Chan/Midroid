@@ -33,7 +33,7 @@ Wireless ADB is preferable for real battery measurements because USB can charge 
 
 ### Foreground idle
 
-Open the home timeline, do not touch the phone, and keep the screen on for 10-15 minutes. This is useful for measuring WebSocket/timer/animation background work while the page is visible.
+Open the home timeline, do not touch the phone, and keep the screen on for 10-15 minutes. This is useful for measuring WebSocket/timer/animation work while the page remains visible.
 
 ### Timeline interaction
 
@@ -41,7 +41,9 @@ For 5-10 minutes, scroll the same timeline at a repeatable pace and open approxi
 
 ### Background residence
 
-Open Misskey, send the app to the background, leave it there for 20-30 minutes, then return. This is the most important test for Midroid's explicit `onPause()` + `pauseTimers()` policy and renderer reclaim behavior.
+Open Misskey, send the app fully to the background so its activity reaches `onStop()`, leave it there for 20-30 minutes, then return. This is the most important test for Midroid's explicit `WebView.onPause()` + `pauseTimers()` deep-suspension policy and renderer reclaim behavior.
+
+Do not count a merely `onPause()` state as background suspension: Android may pause an activity while it remains visible in multi-window or while transient UI is on top. `MidroidDiag` emits `visible` and `hidden` lifecycle events so the measurement can verify the transition actually happened.
 
 ### Media-heavy
 
@@ -121,4 +123,4 @@ Example collection:
 adb logcat -d -v threadtime MidroidDiag:I '*:S'
 ```
 
-Use renderer reclaim events to verify that Eco/Balanced policies are not creating unstable restore loops during background tests.
+Use `visible` / `hidden` events to confirm a background test reached deep suspension, and renderer reclaim events to verify that Eco/Balanced policies are not creating unstable restore loops.
