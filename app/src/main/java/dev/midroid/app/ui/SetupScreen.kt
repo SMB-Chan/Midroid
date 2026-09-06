@@ -18,6 +18,7 @@ class SetupScreen(
     activity: Activity,
     initialUrl: String,
     initialMode: PowerMode,
+    private val onCopyDiagnostics: () -> Unit,
     private val onSave: (String, PowerMode, TextView) -> Unit,
 ) : ScrollView(activity) {
     private val urlInput = EditText(activity)
@@ -104,8 +105,16 @@ class SetupScreen(
             setPadding(0, dp(20), 0, 0)
         }, matchWrap())
 
+        content.addView(Button(activity).apply {
+            text = "Copy diagnostics"
+            setOnClickListener { onCopyDiagnostics() }
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = dp(12) })
+
         content.addView(TextView(activity).apply {
-            text = "Midroid stores the selected instance and login cookies locally. HTTPS is required. External links open in your default browser."
+            text = "Midroid stores the selected instance and login cookies locally. HTTPS is required. External links open in your default browser. Diagnostic copies contain only the instance origin, device/WebView version, power mode and Android power-saver state."
             textSize = 12f
             setPadding(0, dp(8), 0, 0)
         }, matchWrap())
