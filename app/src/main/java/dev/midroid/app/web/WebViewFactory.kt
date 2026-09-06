@@ -1,7 +1,9 @@
 package dev.midroid.app.web
 
 import android.app.Activity
+import android.content.pm.ApplicationInfo
 import android.os.Build
+import android.os.StatFs
 import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebSettings
@@ -32,16 +34,17 @@ object WebViewFactory {
             settings.safeBrowsingEnabled = true
         }
 
-        configureCaching(webView)
+        configureCaching(activity, webView)
 
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false)
 
-        WebView.setWebContentsDebuggingEnabled(false)
+        val appDebuggable = (activity.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        WebView.setWebContentsDebuggingEnabled(appDebuggable)
         return webView
     }
 
-    private fun configureCaching(webView: WebView) {
+    private fun configureCaching(activity: Activity, webView: WebView) {
         val settings = webView.settings
 
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOWNLOAD_FAVICONS_ENABLED)) {
@@ -53,7 +56,7 @@ object WebViewFactory {
         }
 
         configureServiceWorkerCaching()
-        configureHttpCacheQuota(webView)
+        configureHttpCacheQuota(activity, webView)
     }
 
     private fun configureServiceWorkerCaching() {
@@ -72,7 +75,7 @@ object WebViewFactory {
         }
     }
 
-    private fun configureHttpCacheQuota(webView: WebView) {
+    private fun configureHttpCacheQuota(activity: Activity, webView: WebView) {
         val supported =
             WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE) &&
                 WebViewFeature.isFeatureSupported(WebViewFeature.HTTP_CACHE_MANAGER)
@@ -86,7 +89,10 @@ object WebViewFactory {
             val cache = WebViewCompat.getProfile(webView).httpCache
             val current = cache.quotaBytes
             val defaultQuota = cache.defaultQuotaBytes
-            val target = WebCachePolicy.targetQuotaBytes(current, defaultQuota)
+            val available = runCatching {
+                StatFs(activity.filesDir.absolutePath).availableBytes
+            }.getOrDefault(0L)
+            val target = WebCachePolicy.targetQuotaBytes(current, defaultQuota, available)
 
             if (current < target) {
                 cache.setQuotaBytes(target)
@@ -96,7 +102,8 @@ object WebViewFactory {
             Log.i(
                 RuntimeDiagnostics.TAG,
                 "event=cache_policy httpCacheManager=true currentBytes=$current " +
-                    "defaultBytes=$defaultQuota targetBytes=$target effectiveBytes=$effective",
+                    "defaultBytes=$defaultQuota availableBytes=$available targetBytes=$target " +
+                    "effectiveBytes=$effective",
             )
         }.onFailure { error ->
             Log.w(

@@ -4,14 +4,16 @@ Android preserves an app's private data directory across an in-place package upd
 
 ## Stable update signing
 
-GitHub Actions supports a dedicated update-compatible signing track. Configure these repository secrets once:
+GitHub Actions supports a dedicated update-compatible **release** track. Configure these repository secrets once:
 
 - `MIDROID_SIGNING_KEYSTORE_B64`: base64 of a dedicated Midroid JKS/PKCS12 keystore
 - `MIDROID_SIGNING_STORE_PASSWORD`: keystore password
 - `MIDROID_SIGNING_KEY_ALIAS`: key alias
 - `MIDROID_SIGNING_KEY_PASSWORD`: key password
 
-When all four are available, CI signs the debug APK with that stable key and publishes an additional `Midroid-update-apk` artifact. The normal `Midroid-ci-debug-apk` artifact is still produced for verification. If the secrets are absent, the update-compatible artifact is deliberately skipped.
+When all four are available, CI signs `assembleRelease` with that stable key and publishes `Midroid-update-apk`. The update artifact is `debuggable=false` with R8/resource shrinking enabled. The long-lived update key is never assigned to the debug build type.
+
+The normal `Midroid-ci-debug-apk` artifact remains a developer/verification artifact signed with the ordinary ephemeral debug identity. It must not be used as the long-term update track. If the four stable signing secrets are absent, the release build is still compiled for verification but the update-compatible artifact is deliberately skipped.
 
 The signing key must be retained permanently for the lifetime of the update channel. Losing or replacing it means Android will not accept the new APK as an update to an installation signed by the old key.
 
@@ -23,18 +25,24 @@ CI supplies a monotonically increasing `versionCode` from the GitHub Actions wor
 
 ## First migration
 
-Historical Midroid CI debug APKs were signed by the runner's temporary debug signing identity. Therefore the first move onto the stable update channel can require uninstalling the old CI-debug installation before installing the first `Midroid-update-apk`.
+Historical Midroid CI debug APKs were signed by temporary debug signing identities. Therefore the first move onto the stable release update channel can require uninstalling the old CI-debug installation before installing the first `Midroid-update-apk`.
 
-That first uninstall removes Android app data, including the existing login state. After the stable update APK is installed and the user signs in again, later `Midroid-update-apk` builds can be installed over it without clearing app data.
+That first uninstall removes Android app data, including the existing login state. After the stable release APK is installed and the user signs in again, later `Midroid-update-apk` builds can be installed over it without clearing app data.
 
 Do not uninstall the stable-track app during ordinary updates. Install the newer APK directly over the existing package. Keep the application ID `dev.midroid.app` and the stable signing key unchanged.
 
 ## Artifact identity
 
-Every CI APK artifact includes:
+`Midroid-ci-debug-apk` contains:
 
 - `app-debug.apk`
 - `app-debug.apk.sha256`
 - `app-debug.signing.txt`
 
-The signing report contains the APK signing certificate fingerprint. For update-track builds, this fingerprint should remain constant across releases while the APK SHA-256 naturally changes as the app changes.
+`Midroid-update-apk` contains:
+
+- `app-release.apk`
+- `app-release.apk.sha256`
+- `app-release.signing.txt`
+
+The signing report contains the APK signing certificate fingerprint. For update-track builds, this fingerprint must remain constant across releases while the APK SHA-256 naturally changes as the app changes.

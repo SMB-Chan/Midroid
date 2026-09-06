@@ -4,13 +4,41 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class WebCachePolicyTest {
+    private val mib = 1024L * 1024L
+    private val gib = 1024L * mib
+
     @Test
-    fun raisesSmallCachesToMidroidFloor() {
+    fun raisesToPreferredQuotaWhenStorageIsHealthy() {
         assertEquals(
-            256L * 1024L * 1024L,
+            256L * mib,
             WebCachePolicy.targetQuotaBytes(
-                currentQuotaBytes = 64L * 1024L * 1024L,
-                defaultQuotaBytes = 96L * 1024L * 1024L,
+                currentQuotaBytes = 64L * mib,
+                defaultQuotaBytes = 96L * mib,
+                availableBytes = 3L * gib,
+            ),
+        )
+    }
+
+    @Test
+    fun usesModerateQuotaWithOneToTwoGiBFree() {
+        assertEquals(
+            128L * mib,
+            WebCachePolicy.targetQuotaBytes(
+                currentQuotaBytes = 64L * mib,
+                defaultQuotaBytes = 96L * mib,
+                availableBytes = 1536L * mib,
+            ),
+        )
+    }
+
+    @Test
+    fun doesNotGrowCacheWhenStorageIsTight() {
+        assertEquals(
+            64L * mib,
+            WebCachePolicy.targetQuotaBytes(
+                currentQuotaBytes = 64L * mib,
+                defaultQuotaBytes = 96L * mib,
+                availableBytes = 400L * mib,
             ),
         )
     }
@@ -18,21 +46,23 @@ class WebCachePolicyTest {
     @Test
     fun neverShrinksExistingLargerCache() {
         assertEquals(
-            512L * 1024L * 1024L,
+            512L * mib,
             WebCachePolicy.targetQuotaBytes(
-                currentQuotaBytes = 512L * 1024L * 1024L,
-                defaultQuotaBytes = 96L * 1024L * 1024L,
+                currentQuotaBytes = 512L * mib,
+                defaultQuotaBytes = 96L * mib,
+                availableBytes = 3L * gib,
             ),
         )
     }
 
     @Test
-    fun respectsLargerWebViewDefault() {
+    fun respectsLargerWebViewDefaultWhenThereIsRoom() {
         assertEquals(
-            384L * 1024L * 1024L,
+            384L * mib,
             WebCachePolicy.targetQuotaBytes(
-                currentQuotaBytes = 128L * 1024L * 1024L,
-                defaultQuotaBytes = 384L * 1024L * 1024L,
+                currentQuotaBytes = 128L * mib,
+                defaultQuotaBytes = 384L * mib,
+                availableBytes = 3L * gib,
             ),
         )
     }

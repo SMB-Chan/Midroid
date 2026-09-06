@@ -23,8 +23,6 @@ android {
         targetSdk = 36
         versionCode = System.getenv("MIDROID_VERSION_CODE")?.toIntOrNull()?.coerceAtLeast(1) ?: 1
         versionName = System.getenv("MIDROID_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "0.1.0"
-
-        testInstrumentationRunner = "android.app.Instrumentation"
     }
 
     signingConfigs {
@@ -40,11 +38,12 @@ android {
 
     buildTypes {
         debug {
-            if (hasUpdateSigning) {
-                signingConfig = signingConfigs.getByName("update")
-            }
+            // CI/debug builds deliberately use the normal ephemeral debug identity.
+            // Never sign a debuggable APK with the long-lived update key.
+            isDebuggable = true
         }
         release {
+            isDebuggable = false
             isMinifyEnabled = true
             isShrinkResources = true
             if (hasUpdateSigning) {

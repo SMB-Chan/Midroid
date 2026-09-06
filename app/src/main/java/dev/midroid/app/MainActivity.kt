@@ -164,18 +164,20 @@ class MainActivity : ComponentActivity() {
             initialMode = currentMode,
             initialTextScale = currentTextScale,
             onCopyDiagnostics = ::copyDiagnostics,
-        ) { rawUrl, mode, textScale, errorView ->
-            val result = InstanceConfig.parse(rawUrl)
-            result.onSuccess { instance ->
-                currentInstance = instance
-                currentMode = mode
-                currentTextScale = textScale
-                preferences.save(instance, mode, textScale)
-                showBrowser(instance.origin)
-            }.onFailure { error ->
-                errorView.text = error.message ?: "Invalid instance URL."
-                errorView.visibility = android.view.View.VISIBLE
-            }
+        ) { rawUrl, mode, textScale ->
+            InstanceConfig.parse(rawUrl).fold(
+                onSuccess = { instance ->
+                    currentInstance = instance
+                    currentMode = mode
+                    currentTextScale = textScale
+                    preferences.save(instance, mode, textScale)
+                    showBrowser(instance.origin)
+                    null
+                },
+                onFailure = { error ->
+                    error.message ?: "Invalid instance URL."
+                },
+            )
         }
         setContentView(screen)
     }

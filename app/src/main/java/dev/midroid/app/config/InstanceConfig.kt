@@ -3,7 +3,7 @@ package dev.midroid.app.config
 import java.net.URI
 import java.util.Locale
 
-data class InstanceConfig(val origin: String) {
+data class InstanceConfig private constructor(val origin: String) {
     private val uri = URI(origin)
 
     fun owns(rawUrl: String): Boolean = runCatching {

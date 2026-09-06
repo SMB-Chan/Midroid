@@ -17,7 +17,7 @@ The first stage deliberately **does not fork Chromium**. It uses Android System 
 - Eco reduced-motion and autoplay suppression.
 - Eco 60 Hz frame-rate hint: View-level request on Android 15/API 35, propagated through the WebView hierarchy on Android 16/API 36+, with a window-level refresh-rate hint on Android 8-14.
 - Density-aware WebView text scaling with Auto and fixed zoom choices.
-- Larger standards-respecting HTTP cache quota on supported WebView versions, plus BFCache and service-worker cache-policy tuning.
+- Storage-aware, standards-respecting HTTP cache quota on supported WebView versions, plus BFCache and service-worker cache-policy tuning.
 - Interruptible media loading: Android Back cancels in-flight WebView loading before navigating away and tracks Misskey lightbox history.
 - File picker support for Misskey attachments.
 - Authenticated HTTPS downloads through Android DownloadManager.
@@ -25,7 +25,7 @@ The first stage deliberately **does not fork Chromium**. It uses Android System 
 - Privacy-safe `MidroidDiag` lifecycle/renderer logging for power experiments.
 - Settings-screen diagnostic copy containing only device/WebView version, selected power mode, power-saver state and the sanitized Misskey origin.
 - Reproducible ADB capture tooling for Chrome/PWA vs Midroid comparisons, including an automated background scenario.
-- Optional stable CI signing track for update-compatible APKs that preserve Android app data and WebView login state across in-place updates.
+- Stable update track uses a non-debuggable, minified release APK with a dedicated persistent signing identity so Android app data and WebView login state survive in-place updates.
 
 ## Build
 
@@ -37,17 +37,17 @@ Requirements:
 
 A checked-in Gradle wrapper will be added after the initial toolchain bootstrap. For now, use Android Studio's configured Gradle or Gradle 9.6.0.
 
-Run:
+Run the same verification used by CI:
 
 ```text
-gradle lint testDebugUnitTest assembleDebug
+gradle lint testDebugUnitTest assembleDebug assembleRelease
 ```
 
-The debug APK is produced under `app/build/outputs/apk/debug/`. GitHub Actions always uploads a `Midroid-ci-debug-apk` verification artifact. When the four stable signing secrets documented in `docs/UPDATES.md` are configured, CI also uploads `Midroid-update-apk`; use that update track for installations that must keep login state between versions. Until those secrets are configured, the update-compatible artifact is intentionally skipped rather than being mislabeled as safe for in-place updates.
+GitHub Actions always uploads a `Midroid-ci-debug-apk` developer artifact. When the four stable signing secrets documented in `docs/UPDATES.md` are configured, CI additionally signs the **release** build and uploads it as `Midroid-update-apk`. The long-lived update key is never used for the debuggable build type. Until those secrets are configured, the release build is verified but the update-compatible artifact is intentionally skipped rather than being mislabeled as safe for in-place updates.
 
-Every CI artifact includes an APK SHA-256 file and `apksigner --print-certs` output so the signing identity can be checked between builds. CI also assigns a monotonically increasing `versionCode` from the workflow run number.
+Every published APK artifact includes an APK SHA-256 file and `apksigner --print-certs` output so the signing identity can be checked between builds. CI also assigns a monotonically increasing `versionCode` from the workflow run number.
 
-See `docs/UPDATES.md` before installing the stable update track. Historical CI debug builds used temporary runner signing identities, so the first migration to the stable signing key can require one reinstall; later stable-track APKs update in place while retaining Android app data and the WebView login state.
+See `docs/UPDATES.md` before installing the stable update track. Historical CI debug builds used temporary debug signing identities, so the first migration to the stable signing key can require one reinstall; later stable-track APKs update in place while retaining Android app data and the WebView login state.
 
 ## Measure before forking Chromium
 

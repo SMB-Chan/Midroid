@@ -1,6 +1,7 @@
 package dev.midroid.app.web
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -13,10 +14,11 @@ class ExternalNavigator(private val activity: Activity) {
             return
         }
 
-        val intent = Intent(Intent.ACTION_VIEW, uri)
-        if (intent.resolveActivity(activity.packageManager) != null) {
-            activity.startActivity(intent)
-        } else {
+        // Starting an explicit implicit-intent flow is more reliable than preflighting with
+        // resolveActivity() on Android 11+, where package visibility can hide valid handlers.
+        try {
+            activity.startActivity(Intent(Intent.ACTION_VIEW, uri))
+        } catch (_: ActivityNotFoundException) {
             Toast.makeText(activity, "No app can open this link.", Toast.LENGTH_SHORT).show()
         }
     }

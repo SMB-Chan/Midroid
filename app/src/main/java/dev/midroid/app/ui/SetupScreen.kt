@@ -21,7 +21,7 @@ class SetupScreen(
     initialMode: PowerMode,
     initialTextScale: TextScale,
     private val onCopyDiagnostics: () -> Unit,
-    private val onSave: (String, PowerMode, TextScale, TextView) -> Unit,
+    private val onSave: (String, PowerMode, TextScale) -> String?,
 ) : ScrollView(activity) {
     private val urlInput = EditText(activity)
     private val modeGroup = RadioGroup(activity)
@@ -114,8 +114,12 @@ class SetupScreen(
         content.addView(Button(activity).apply {
             text = "Open Misskey"
             setOnClickListener {
-                errorText.visibility = GONE
-                onSave(urlInput.text.toString(), selectedMode(), selectedTextScale(), errorText)
+                val error = onSave(urlInput.text.toString(), selectedMode(), selectedTextScale())
+                if (error == null) {
+                    errorText.visibility = GONE
+                } else {
+                    showError(error)
+                }
             }
         }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -151,7 +155,7 @@ class SetupScreen(
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
 
-    fun showError(message: String) {
+    private fun showError(message: String) {
         errorText.text = message
         errorText.visibility = VISIBLE
     }

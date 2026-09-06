@@ -46,7 +46,7 @@ jobs:
             echo "stable=true" >> "$GITHUB_OUTPUT"
           else
             echo "stable=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Stable update signing is not configured; this run will use an ephemeral CI debug signature."
+            echo "::notice::Stable update signing is not configured; release will be built unsigned and no update artifact will be published."
           fi
 
       - uses: actions/setup-java@v5
@@ -64,16 +64,30 @@ jobs:
           gradle-version: 9.6.0
       - name: Validate benchmark tooling
         run: bash -n tools/benchmark_android.sh
-      - name: Verify
-        run: gradle --stacktrace lint testDebugUnitTest assembleDebug
-      - name: Record APK identity
+      - name: Verify debug and release builds
+        run: gradle --stacktrace lint testDebugUnitTest assembleDebug assembleRelease
+
+      - name: Record CI debug APK identity
         shell: bash
         run: |
           set -euo pipefail
-          apk="app/build/outputs/apk/debug/app-debug.apk"
-          sha256sum "$apk" | tee app/build/outputs/apk/debug/app-debug.apk.sha256
+          dir="app/build/outputs/apk/debug"
+          apk="$dir/app-debug.apk"
+          sha256sum "$apk" | tee "$apk.sha256"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" \
-            | tee app/build/outputs/apk/debug/app-debug.signing.txt
+            | tee "$dir/app-debug.signing.txt"
+
+      - name: Record update release APK identity
+        if: steps.update_signing.outputs.stable == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="app/build/outputs/apk/release"
+          apk="$dir/app-release.apk"
+          sha256sum "$apk" | tee "$apk.sha256"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" \
+            | tee "$dir/app-release.signing.txt"
+
       - name: Upload CI debug APK
         uses: actions/upload-artifact@v7
         with:
@@ -84,14 +98,15 @@ jobs:
             app/build/outputs/apk/debug/app-debug.signing.txt
           if-no-files-found: error
           retention-days: 14
-      - name: Upload update-compatible APK
+
+      - name: Upload update-compatible release APK
         if: steps.update_signing.outputs.stable == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: Midroid-update-apk
           path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/debug/app-debug.apk.sha256
-            app/build/outputs/apk/debug/app-debug.signing.txt
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/app-release.apk.sha256
+            app/build/outputs/apk/release/app-release.signing.txt
           if-no-files-found: error
           retention-days: 30
