@@ -10,6 +10,7 @@ SAMPLE_INTERVAL="${MIDROID_SAMPLE_INTERVAL:-10}"
 FAKE_UNPLUG="${MIDROID_BATTERY_UNPLUG:-0}"
 SCENARIO="${MIDROID_SCENARIO:-foreground-idle}"
 WARMUP_SECONDS="${MIDROID_WARMUP_SECONDS:-5}"
+LAUNCH_URI="${MIDROID_LAUNCH_URI:-}"
 
 if ! command -v "$ADB" >/dev/null 2>&1; then
   echo "adb was not found. Set ADB=/path/to/adb or add it to PATH." >&2
@@ -28,6 +29,11 @@ fi
 
 if ! [[ "$WARMUP_SECONDS" =~ ^[0-9]+$ ]]; then
   echo "MIDROID_WARMUP_SECONDS must be a non-negative integer" >&2
+  exit 2
+fi
+
+if [ -n "$LAUNCH_URI" ] && ! [[ "$LAUNCH_URI" =~ ^https?:// ]]; then
+  echo "MIDROID_LAUNCH_URI must be an http(s) URL" >&2
   exit 2
 fi
 
@@ -67,6 +73,7 @@ capture() {
   echo "warmup_seconds=$WARMUP_SECONDS"
   echo "sample_interval_seconds=$SAMPLE_INTERVAL"
   echo "fake_unplug=$FAKE_UNPLUG"
+  echo "launch_uri_configured=$([ -n "$LAUNCH_URI" ] && echo 1 || echo 0)"
   echo "captured_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "adb_serial=$($ADB get-serialno 2>/dev/null || echo unknown)"
   echo "device=$($ADB shell getprop ro.product.device 2>/dev/null | tr -d '\r')"
@@ -94,8 +101,20 @@ if [ "$FAKE_UNPLUG" = "1" ]; then
 fi
 
 "$ADB" shell am force-stop "$PKG" >/dev/null 2>&1 || true
-"$ADB" shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >"$OUT/launch.txt" 2>&1 || true
+if [ -n "$LAUNCH_URI" ]; then
+  if ! "$ADB" shell am start -W -a android.intent.action.VIEW -d "$LAUNCH_URI" -p "$PKG" >"$OUT/launch.txt" 2>&1; then
+    echo "Failed to launch $PKG with MIDROID_LAUNCH_URI; see $OUT/launch.txt" >&2
+    exit 4
+  fi
+  if grep -q '^Error:' "$OUT/launch.txt"; then
+    echo "Android rejected the requested launch URI; see $OUT/launch.txt" >&2
+    exit 4
+  fi
+else
+  "$ADB" shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >"$OUT/launch.txt" 2>&1 || true
+fi
 sleep "$WARMUP_SECONDS"
+capture activity-after-launch.txt dumpsys activity activities
 
 case "$SCENARIO" in
   foreground-idle)
