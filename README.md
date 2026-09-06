@@ -47,7 +47,7 @@ The debug APK is produced under `app/build/outputs/apk/debug/`. GitHub Actions a
 
 Every CI artifact includes an APK SHA-256 file and `apksigner --print-certs` output so the signing identity can be checked between builds. CI also assigns a monotonically increasing `versionCode` from the workflow run number.
 
-See `docs/UPDATES.md` before installing the stable update track. Historical CI debug builds used temporary runner signing identities, so the first migration to the stable signing key can require one reinstall; later stable-track APKs update in place.
+See `docs/UPDATES.md` before installing the stable update track. Historical CI debug builds used temporary runner signing identities, so the first migration to the stable signing key can require one reinstall; later stable-track APKs update in place while retaining Android app data and the WebView login state.
 
 ## Measure before forking Chromium
 
