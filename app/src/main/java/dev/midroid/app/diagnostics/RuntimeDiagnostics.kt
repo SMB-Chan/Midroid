@@ -36,6 +36,12 @@ object RuntimeDiagnostics {
         )
     }
 
+    fun buildSnapshot(context: Context, mode: PowerMode, rawUrl: String?): String = buildString {
+        appendLine("Midroid diagnostics")
+        appendLine("${Build.MANUFACTURER} ${Build.MODEL}")
+        append(baseFields(context, mode, rawUrl))
+    }
+
     private fun baseFields(context: Context, mode: PowerMode, rawUrl: String?): String {
         val webViewPackage = WebView.getCurrentWebViewPackage()
         val webView = if (webViewPackage == null) {
