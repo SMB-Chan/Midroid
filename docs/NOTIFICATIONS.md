@@ -4,49 +4,77 @@ Midroid's WebView MVP intentionally does not fake browser Web Push support. Noti
 
 ## What Misskey expects
 
-Current Misskey registers push subscriptions through its authenticated `sw/register` API. A registration contains:
+Current Misskey exposes the authenticated `sw/register` endpoint in its generated API surface. A Web Push subscription supplies an endpoint plus the receiver's authentication secret and P-256 public key (`p256dh` / Misskey's `publickey` field), together with optional read-message behavior.
 
-- `endpoint`
-- `auth`
-- `publickey` (`p256dh`)
-- optional read-message behavior
+The important compatibility boundary is the Web Push subscription contract, not a Midroid-specific server extension. If Midroid can provide a standards-compatible subscription endpoint and receiver key material, an existing Misskey instance can continue using its normal push sender path.
 
-The server stores that subscription and later uses the standard `web-push` library with the instance VAPID key pair to send an encrypted payload to the registered endpoint.
+## Security property to preserve
 
-This is useful for Midroid: a Misskey server does not need to understand Midroid specifically. If Midroid can provide a standards-compatible Web Push subscription endpoint and keys, the existing Misskey push path can remain unchanged.
+Web Push message encryption is designed to keep payload contents confidential from the push service itself. The receiver generates a P-256 ECDH key pair and an authentication secret for a subscription; the application server encrypts to the receiver public key, while decryption requires the receiver private key.
 
-## Candidate approaches
+Midroid should preserve that end-to-end property:
 
-### A. Web Push gateway -> native push
+- the Android app owns and stores the subscription private key;
+- the relay never receives that private key;
+- the relay forwards an opaque encrypted Web Push envelope;
+- decryption occurs on-device immediately before notification processing.
 
-A small gateway exposes a standards-compatible Web Push endpoint, decrypts messages for a Midroid subscription, and forwards them to an Android delivery mechanism such as FCM or a UnifiedPush distributor.
+A relay will still observe metadata such as subscription identity, timing, sender network information and ciphertext length. Opaque forwarding reduces trust in the relay; it does not make the relay metadata-blind.
 
-Advantages:
+## Preferred architecture: opaque Web Push relay -> native delivery
 
-- keeps existing Misskey instances unchanged;
-- realtime delivery without a permanent WebSocket in Midroid;
-- WebView can remain deeply suspended in the background.
+A separately deployable relay exposes an unguessable HTTPS Web Push endpoint for each Midroid subscription. The high-level flow is:
 
-Costs / risks:
+1. Midroid generates a fresh P-256 receiver key pair and a cryptographically random Web Push authentication secret.
+2. Midroid creates a relay subscription and associates it with an Android delivery target.
+3. Midroid registers the relay endpoint plus only the receiver **public** key and auth secret with Misskey through the normal `sw/register` contract.
+4. Misskey sends its ordinary encrypted Web Push POST to the relay endpoint.
+5. The relay validates the subscription, applies size/rate/replay controls, and forwards the encrypted envelope through an Android delivery transport.
+6. Midroid receives the envelope and decrypts it locally using the subscription private key and auth secret.
+7. Only after successful authenticated decryption does Midroid parse and display a notification.
 
-- requires a reachable gateway service;
-- the gateway becomes security/privacy-sensitive infrastructure;
-- subscription-key lifecycle, replay protection, authentication and deletion must be designed carefully;
-- FCM would add a Google-service dependency unless another distributor is supported.
+The relay must not terminate Web Push payload confidentiality by decrypting the message as part of normal operation.
 
-A relay should therefore be optional and separately deployable, not silently bundled into the first WebView MVP.
+### Delivery transports
 
-### B. Self-hosted Web Push gateway
+The opaque relay can have pluggable delivery backends:
 
-Same protocol shape as A, but the user or instance operator supplies the gateway. This minimizes central trust but increases setup complexity.
+- FCM data delivery for devices with Google Play services;
+- UnifiedPush for users who prefer a compatible distributor;
+- a future self-hosted transport where practical.
 
-### C. Background Misskey WebSocket
+Transport-specific identifiers belong at the relay boundary and should not leak into Misskey's subscription API.
+
+### Relay security requirements
+
+Before implementation, the relay protocol needs explicit handling for:
+
+- unguessable, independently revocable subscription endpoint IDs;
+- authenticated device registration and rotation;
+- replay and duplicate suppression;
+- request body and header size limits;
+- rate limiting and abuse controls;
+- TTL / urgency semantics where the downstream transport can preserve them;
+- atomic subscription replacement and deletion;
+- no request/body logging by default;
+- minimal retention of delivery metadata;
+- key separation: relay credentials must never be usable as Web Push receiver private keys.
+
+If a downstream transport cannot carry the encrypted envelope intact, that transport is unsuitable unless a comparably end-to-end encrypted encapsulation is added. Falling back to relay-side plaintext should not be silent.
+
+## Self-hosted relay
+
+The same opaque protocol should be deployable by a user or instance operator. Self-hosting reduces central trust and can enable UnifiedPush-first deployments, at the cost of setup and maintenance complexity.
+
+The hosted and self-hosted variants should share the same protocol so Midroid does not need separate notification implementations.
+
+## Background Misskey WebSocket
 
 A native service could authenticate to Misskey and keep a streaming connection alive.
 
-This is technically simpler than a push gateway but conflicts with Midroid's battery objective, creates Android background-execution complexity, and would require reliable native credential provisioning. It should be treated as a diagnostic/control implementation, not the default notification design.
+This is technically simpler than a push relay but conflicts with Midroid's battery objective, creates Android background-execution complexity, and requires reliable native credential provisioning. It should be treated as a diagnostic/control implementation, not the default notification design.
 
-### D. Periodic notification sync
+## Periodic notification sync
 
 A native scheduled worker could periodically query notifications.
 
@@ -58,8 +86,10 @@ For the 0.1 WebView MVP:
 
 1. do not keep a native background WebSocket solely for notifications;
 2. do not inject a broad JavaScript interface into arbitrary Misskey pages;
-3. preserve the existing Misskey web-push registration contract as the compatibility target;
-4. benchmark foreground/background power first;
-5. prototype the gateway path as a separate component only after the WebView MVP is stable on real devices.
+3. preserve the existing Misskey `sw/register` / Web Push contract as the compatibility target;
+4. keep Web Push receiver private keys on-device;
+5. require any future relay to forward encrypted envelopes rather than normally decrypting them;
+6. benchmark foreground/background power first;
+7. prototype the relay as a separate component only after the WebView MVP is stable on real devices.
 
 The notification layer must never require weakening WebView origin isolation or SSL validation.
