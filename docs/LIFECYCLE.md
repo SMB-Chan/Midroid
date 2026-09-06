@@ -1,3 +1,6 @@
+Failed to create stream fd: Operation not permitted
+Failed to create stream fd: Operation not permitted
+Failed to create stream fd: Operation not permitted
 # Lifecycle policy
 
 Midroid distinguishes **visible** from merely **resumed** activity state.
@@ -8,7 +11,7 @@ The WebView enters deep suspension from `Activity.onStop()`, not `onPause()`. Th
 
 | Android activity state | Midroid action |
 | --- | --- |
-| `onStart()` | Resume WebView timers and renderer activity, then re-apply the selected document power policy. |
+| `onStart()` | Resume WebView timers and renderer activity, then re-apply the selected document and refresh-rate policy. |
 | `onResume()` / `onPause()` | No deep WebView suspension. Android may pause an activity while it is still visible. |
 | `onStop()` | Pause media, call `WebView.onPause()`, then `pauseTimers()`. |
 | renderer reclaimed while hidden | Keep the last known safe URL and recreate the WebView when the activity becomes visible again. |
@@ -19,7 +22,7 @@ This policy favors correctness first: background work is aggressively suspended 
 
 Midroid treats refresh rate as a **scheduler hint**, not a guarantee.
 
-- Android 16 / API 36+: Eco propagates a 60 Hz request through the WebView hierarchy with `ViewGroup.propagateRequestedFrameRate()`; Balanced and Performance restore the default category.
+- Android 16 / API 36+: Eco propagates a 60 Hz request through the WebView hierarchy with `ViewGroup.propagateRequestedFrameRate()`; the hint is applied again when the document is ready because WebView creates internal views lazily. Balanced and Performance restore the default category.
 - Android 15 / API 35: Eco uses `View.setRequestedFrameRate(60f)` on the WebView; Balanced and Performance restore the default category.
 - Android 8-14 / API 26-34: Midroid falls back to the window-level `preferredRefreshRate` hint.
 
