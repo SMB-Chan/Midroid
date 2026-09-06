@@ -12,10 +12,10 @@ The first stage deliberately **does not fork Chromium**. It uses Android System 
 - Keep same-origin Misskey navigation inside the app.
 - Open non-instance top-level links in the system browser/app.
 - Eco / Balanced / Performance power modes.
-- Background `WebView.onPause()` + `pauseTimers()` suspension.
+- Visibility-aware deep suspension: `WebView.onPause()` + `pauseTimers()` only after the activity reaches `onStop()`.
 - Renderer priority policy with `onRenderProcessGone` recovery.
 - Eco reduced-motion and autoplay suppression.
-- 60 Hz preference in Eco mode.
+- WebView-scoped 60 Hz preference in Eco mode on Android 11+, with a legacy window fallback on older supported Android versions.
 - File picker support for Misskey attachments.
 - Authenticated HTTPS downloads through Android DownloadManager.
 - Cleartext traffic disabled; SSL errors are never bypassed.
@@ -58,4 +58,4 @@ See `docs/BENCHMARKING.md` for the controlled A/B/A protocol.
 
 Forking Chromium immediately would make Midroid responsible for fast-moving browser security updates and a large native build surface before we have measured which changes actually save power. The WebView stage is designed to answer that experimentally. If profiling shows a bottleneck that WebView APIs cannot control, that evidence defines the smallest useful Chromium patch set.
 
-See `docs/ARCHITECTURE.md`, `docs/POWER_POLICY.md` and `docs/BENCHMARKING.md` for the design boundary, current power policy and measurement method.
+See `docs/ARCHITECTURE.md`, `docs/POWER_POLICY.md`, `docs/LIFECYCLE.md` and `docs/BENCHMARKING.md` for the design boundary, current power policy, lifecycle policy and measurement method.
