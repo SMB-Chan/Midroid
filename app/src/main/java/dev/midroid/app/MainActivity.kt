@@ -1,6 +1,8 @@
 package dev.midroid.app
 
 import android.app.DownloadManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Color
 import android.net.Uri
@@ -124,6 +126,7 @@ class MainActivity : ComponentActivity() {
             activity = this,
             initialUrl = currentInstance?.origin.orEmpty(),
             initialMode = currentMode,
+            onCopyDiagnostics = ::copyDiagnostics,
         ) { rawUrl, mode, errorView ->
             val result = InstanceConfig.parse(rawUrl)
             result.onSuccess { instance ->
@@ -137,6 +140,17 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContentView(screen)
+    }
+
+    private fun copyDiagnostics() {
+        val text = RuntimeDiagnostics.buildSnapshot(
+            this,
+            currentMode,
+            lastKnownUrl ?: currentInstance?.origin,
+        )
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("Midroid diagnostics", text))
+        Toast.makeText(this, "Diagnostics copied.", Toast.LENGTH_SHORT).show()
     }
 
     private fun showBrowser(url: String) {
