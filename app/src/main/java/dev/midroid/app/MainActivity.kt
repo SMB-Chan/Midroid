@@ -5,9 +5,6 @@ import android.content.Context
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.OnBackPressedCallback
-import androidx.activity.result.contract.ActivityResultContracts
 import android.view.Gravity
 import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
@@ -17,8 +14,12 @@ import android.webkit.WebView
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import dev.midroid.app.config.AppPreferences
 import dev.midroid.app.config.InstanceConfig
+import dev.midroid.app.diagnostics.RuntimeDiagnostics
 import dev.midroid.app.power.PowerMode
 import dev.midroid.app.power.WebViewPowerController
 import dev.midroid.app.ui.SetupScreen
@@ -55,6 +56,7 @@ class MainActivity : ComponentActivity() {
 
         currentInstance = preferences.loadInstance()
         currentMode = preferences.loadPowerMode()
+        RuntimeDiagnostics.logAppStart(this, currentMode, currentInstance?.origin)
 
         val instance = currentInstance
         if (instance == null) {
@@ -67,6 +69,12 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         foreground = true
+        RuntimeDiagnostics.logLifecycle(
+            this,
+            "foreground",
+            currentMode,
+            lastKnownUrl ?: currentInstance?.origin,
+        )
 
         if (webView == null && pendingUrl != null && currentInstance != null) {
             showBrowser(pendingUrl!!)
@@ -79,6 +87,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         foreground = false
+        RuntimeDiagnostics.logLifecycle(
+            this,
+            "background",
+            currentMode,
+            lastKnownUrl ?: currentInstance?.origin,
+        )
         webView?.let { powerController.onBackground(it) }
         super.onPause()
     }
@@ -143,7 +157,10 @@ class MainActivity : ComponentActivity() {
             instance = instance,
             externalNavigator = externalNavigator,
             onMainFrameUrlChanged = { lastKnownUrl = it },
-            onPageReady = { view -> powerController.onPageReady(view, currentMode) },
+            onPageReady = { view ->
+                RuntimeDiagnostics.logPageReady(this, currentMode, lastKnownUrl)
+                powerController.onPageReady(view, currentMode)
+            },
             onRendererGone = ::handleRendererGone,
         )
         created.webChromeClient = MidroidWebChromeClient(::launchFileChooser)
@@ -183,6 +200,8 @@ class MainActivity : ComponentActivity() {
 
     private fun handleRendererGone(deadView: WebView, detail: RenderProcessGoneDetail) {
         val restoreUrl = lastKnownUrl ?: currentInstance?.origin
+        RuntimeDiagnostics.logRendererGone(this, currentMode, restoreUrl, detail)
+
         val root = browserRoot
         root?.removeView(deadView)
         if (webView === deadView) webView = null
@@ -258,5 +277,4 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
-
 }
