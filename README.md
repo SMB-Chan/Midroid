@@ -36,7 +36,7 @@ Then run:
 gradle lint testDebugUnitTest assembleDebug
 ```
 
-The debug APK is produced under `app/build/outputs/apk/debug/`.
+The debug APK is produced under `app/build/outputs/apk/debug/`. GitHub Actions also uploads it as the `Midroid-debug-apk` workflow artifact after every successful verification run.
 
 ## Why WebView first?
 
