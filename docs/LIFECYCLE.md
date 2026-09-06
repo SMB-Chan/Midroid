@@ -1,6 +1,3 @@
-Failed to create stream fd: Operation not permitted
-Failed to create stream fd: Operation not permitted
-Failed to create stream fd: Operation not permitted
 # Lifecycle policy
 
 Midroid distinguishes **visible** from merely **resumed** activity state.
