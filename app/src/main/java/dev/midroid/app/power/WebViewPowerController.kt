@@ -1,3 +1,6 @@
+Failed to create stream fd: Operation not permitted
+Failed to create stream fd: Operation not permitted
+Failed to create stream fd: Operation not permitted
 package dev.midroid.app.power
 
 import android.app.Activity
@@ -29,9 +32,10 @@ class WebViewPowerController {
         applyRefreshRatePreference(activity, webView, mode)
     }
 
-    fun onForeground(webView: WebView, mode: PowerMode) {
+    fun onForeground(activity: Activity, webView: WebView, mode: PowerMode) {
         webView.resumeTimers()
         webView.onResume()
+        applyRefreshRatePreference(activity, webView, mode)
         applyDocumentPolicy(webView, mode)
     }
 
@@ -41,7 +45,10 @@ class WebViewPowerController {
         webView.pauseTimers()
     }
 
-    fun onPageReady(webView: WebView, mode: PowerMode) {
+    fun onPageReady(activity: Activity, webView: WebView, mode: PowerMode) {
+        // WebView creates part of its view hierarchy lazily. Reapply the hint after the
+        // document is ready so API 36 propagation reaches that hierarchy as well.
+        applyRefreshRatePreference(activity, webView, mode)
         applyDocumentPolicy(webView, mode)
     }
 
