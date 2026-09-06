@@ -8,6 +8,8 @@ OUT="${4:-benchmarks/${LABEL}}"
 ADB="${ADB:-adb}"
 SAMPLE_INTERVAL="${MIDROID_SAMPLE_INTERVAL:-10}"
 FAKE_UNPLUG="${MIDROID_BATTERY_UNPLUG:-0}"
+SCENARIO="${MIDROID_SCENARIO:-foreground-idle}"
+WARMUP_SECONDS="${MIDROID_WARMUP_SECONDS:-5}"
 
 if ! command -v "$ADB" >/dev/null 2>&1; then
   echo "adb was not found. Set ADB=/path/to/adb or add it to PATH." >&2
@@ -23,6 +25,19 @@ if ! [[ "$SAMPLE_INTERVAL" =~ ^[0-9]+$ ]] || [ "$SAMPLE_INTERVAL" -lt 1 ]; then
   echo "MIDROID_SAMPLE_INTERVAL must be a positive integer" >&2
   exit 2
 fi
+
+if ! [[ "$WARMUP_SECONDS" =~ ^[0-9]+$ ]]; then
+  echo "MIDROID_WARMUP_SECONDS must be a non-negative integer" >&2
+  exit 2
+fi
+
+case "$SCENARIO" in
+  foreground-idle|background|manual) ;;
+  *)
+    echo "MIDROID_SCENARIO must be foreground-idle, background, or manual" >&2
+    exit 2
+    ;;
+esac
 
 if [ "$("$ADB" get-state 2>/dev/null || true)" != "device" ]; then
   echo "No adb device is ready." >&2
@@ -47,7 +62,9 @@ capture() {
 {
   echo "label=$LABEL"
   echo "package=$PKG"
+  echo "scenario=$SCENARIO"
   echo "duration_seconds=$DURATION"
+  echo "warmup_seconds=$WARMUP_SECONDS"
   echo "sample_interval_seconds=$SAMPLE_INTERVAL"
   echo "fake_unplug=$FAKE_UNPLUG"
   echo "captured_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -78,7 +95,22 @@ fi
 
 "$ADB" shell am force-stop "$PKG" >/dev/null 2>&1 || true
 "$ADB" shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >"$OUT/launch.txt" 2>&1 || true
-sleep 5
+sleep "$WARMUP_SECONDS"
+
+case "$SCENARIO" in
+  foreground-idle)
+    echo "scenario_transition=none" >"$OUT/scenario.txt"
+    ;;
+  background)
+    "$ADB" shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
+    sleep 2
+    echo "scenario_transition=home" >"$OUT/scenario.txt"
+    capture activity-after-transition.txt dumpsys activity activities
+    ;;
+  manual)
+    echo "scenario_transition=manual" >"$OUT/scenario.txt"
+    ;;
+esac
 
 START_EPOCH=$(date +%s)
 END_EPOCH=$((START_EPOCH + DURATION))
@@ -115,9 +147,19 @@ capture jobscheduler-after.txt dumpsys jobscheduler "$PKG"
 
 "$ADB" logcat -d -v threadtime MidroidDiag:I '*:S' >"$OUT/midroid-diag.log" 2>&1 || true
 
+if [ "$PKG" = "dev.midroid.app" ] && [ "$SCENARIO" = "background" ]; then
+  if grep -q "event=hidden" "$OUT/midroid-diag.log"; then
+    echo "deep_suspend_transition=observed" >>"$OUT/scenario.txt"
+  else
+    echo "deep_suspend_transition=not_observed" >>"$OUT/scenario.txt"
+    echo "Warning: MidroidDiag did not show event=hidden during the background scenario." >&2
+  fi
+fi
+
 cat <<EOF
 Benchmark capture complete.
 Package: $PKG
+Scenario: $SCENARIO
 Duration: ${DURATION}s
 Output: $OUT
 
