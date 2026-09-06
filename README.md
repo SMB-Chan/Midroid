@@ -15,7 +15,7 @@ The first stage deliberately **does not fork Chromium**. It uses Android System 
 - Visibility-aware deep suspension: `WebView.onPause()` + `pauseTimers()` only after the activity reaches `onStop()`.
 - Renderer priority policy with `onRenderProcessGone` recovery.
 - Eco reduced-motion and autoplay suppression.
-- WebView-scoped 60 Hz preference in Eco mode on Android 11+, with a legacy window fallback on older supported Android versions.
+- Eco 60 Hz frame-rate hint: View-level request on Android 15/API 35, propagated through the WebView hierarchy on Android 16/API 36+, with a window-level refresh-rate hint on Android 8-14.
 - File picker support for Misskey attachments.
 - Authenticated HTTPS downloads through Android DownloadManager.
 - Cleartext traffic disabled; SSL errors are never bypassed.
