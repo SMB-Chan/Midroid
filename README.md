@@ -21,7 +21,7 @@ The first stage deliberately **does not fork Chromium**. It uses Android System 
 - Cleartext traffic disabled; SSL errors are never bypassed.
 - Privacy-safe `MidroidDiag` lifecycle/renderer logging for power experiments.
 - Settings-screen diagnostic copy containing only device/WebView version, selected power mode, power-saver state and the sanitized Misskey origin.
-- Reproducible ADB capture tooling for Chrome/PWA vs Midroid comparisons.
+- Reproducible ADB capture tooling for Chrome/PWA vs Midroid comparisons, including an automated background scenario.
 
 ## Build
 
@@ -49,7 +49,14 @@ Midroid includes a raw-data ADB benchmark collector:
 bash tools/benchmark_android.sh dev.midroid.app 600 midroid-balanced-01
 ```
 
-Use the same script with the Chrome or installed WebAPK package to build an A/B dataset. The collector stores battery, CPU, process, memory, frame timing, network and WebView/lifecycle evidence rather than reducing everything to a single opaque score.
+For a repeatable background-residence test:
+
+```text
+MIDROID_SCENARIO=background MIDROID_WARMUP_SECONDS=10 \
+  bash tools/benchmark_android.sh dev.midroid.app 1200 midroid-balanced-background-01
+```
+
+Use the same collector with Chrome or the installed WebAPK package to build an A/B dataset. The collector stores battery, CPU, process, memory, frame timing, network and WebView/lifecycle evidence rather than reducing everything to a single opaque score.
 
 `MidroidDiag` intentionally logs only the Misskey origin, power mode, WebView provider/version, Android SDK/power-saver state, lifecycle transitions and renderer termination reason. URL paths, note IDs, query strings and fragments are excluded.
 
@@ -59,4 +66,6 @@ See `docs/BENCHMARKING.md` for the controlled A/B/A protocol.
 
 Forking Chromium immediately would make Midroid responsible for fast-moving browser security updates and a large native build surface before we have measured which changes actually save power. The WebView stage is designed to answer that experimentally. If profiling shows a bottleneck that WebView APIs cannot control, that evidence defines the smallest useful Chromium patch set.
 
-See `docs/ARCHITECTURE.md`, `docs/POWER_POLICY.md`, `docs/LIFECYCLE.md` and `docs/BENCHMARKING.md` for the design boundary, current power policy, lifecycle policy and measurement method.
+Native notifications are intentionally kept as a separate subsystem. Current Misskey already emits standard Web Push; Midroid's compatibility target is a standards-compatible subscription endpoint rather than a permanent background WebSocket. See `docs/NOTIFICATIONS.md`.
+
+See `docs/ARCHITECTURE.md`, `docs/POWER_POLICY.md`, `docs/LIFECYCLE.md`, `docs/BENCHMARKING.md` and `docs/NOTIFICATIONS.md` for the design boundaries and measurement plan.
