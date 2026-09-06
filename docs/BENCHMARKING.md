@@ -76,19 +76,22 @@ For Midroid:
 bash tools/benchmark_android.sh dev.midroid.app 600 midroid-balanced-01
 ```
 
-For Chrome itself:
+For a generic Chrome baseline, explicitly launch the same Misskey instance instead of relying on whatever tab Chrome happened to have open:
 
 ```text
-bash tools/benchmark_android.sh com.android.chrome 600 chrome-01
+MIDROID_LAUNCH_URI=https://your.instance.example/ \
+  bash tools/benchmark_android.sh com.android.chrome 600 chrome-01
 ```
 
-A PWA installed as a WebAPK may have its own package. On many devices you can discover candidates with:
+`MIDROID_LAUNCH_URI` is passed to Android's `ACTION_VIEW` for the selected package. The raw URI is deliberately not written to `manifest.txt`; the manifest records only whether explicit URI launch was enabled. Prefer a simple instance/root URL without query parameters.
+
+An installed Misskey PWA/WebAPK is preferable to generic Chrome when available because it more closely matches the user's actual PWA runtime. On many devices you can discover candidates with:
 
 ```text
 adb shell pm list packages | grep -i webapk
 ```
 
-Use the actual package name in place of `com.android.chrome` when the installed Misskey PWA runs under a WebAPK package.
+Use the actual package name in place of `com.android.chrome` when the installed Misskey PWA runs under a WebAPK package. A WebAPK can normally be launched through its launcher entry, so `MIDROID_LAUNCH_URI` is mainly useful for the generic-browser baseline.
 
 Optional environment variables:
 
@@ -97,6 +100,7 @@ MIDROID_SCENARIO=foreground-idle   # foreground-idle | background | manual
 MIDROID_WARMUP_SECONDS=5
 MIDROID_SAMPLE_INTERVAL=10
 MIDROID_BATTERY_UNPLUG=1
+MIDROID_LAUNCH_URI=https://your.instance.example/
 ADB=/custom/path/to/adb
 ```
 
@@ -108,6 +112,8 @@ Each run records:
 
 - device/build/brightness/refresh metadata;
 - selected scenario and warm-up duration;
+- whether explicit URI launch was configured (not the URI itself);
+- activity state immediately after launch;
 - WebView provider state;
 - battery state before and after;
 - package metadata and UID information;
