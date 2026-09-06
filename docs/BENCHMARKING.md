@@ -35,13 +35,32 @@ Wireless ADB is preferable for real battery measurements because USB can charge 
 
 Open the home timeline, do not touch the phone, and keep the screen on for 10-15 minutes. This is useful for measuring WebSocket/timer/animation work while the page remains visible.
 
+The script's default is `foreground-idle`:
+
+```text
+bash tools/benchmark_android.sh dev.midroid.app 600 midroid-balanced-foreground-01
+```
+
 ### Timeline interaction
 
 For 5-10 minutes, scroll the same timeline at a repeatable pace and open approximately the same number of notes/media items. This stresses rendering, decode, JS, and network activity.
 
+Use the manual scenario so the script records the run without changing foreground/background state itself:
+
+```text
+MIDROID_SCENARIO=manual bash tools/benchmark_android.sh dev.midroid.app 600 midroid-balanced-scroll-01
+```
+
 ### Background residence
 
-Open Misskey, send the app fully to the background so its activity reaches `onStop()`, leave it there for 20-30 minutes, then return. This is the most important test for Midroid's explicit `WebView.onPause()` + `pauseTimers()` deep-suspension policy and renderer reclaim behavior.
+Open Misskey, then move the app fully to the background so its activity reaches `onStop()`. The benchmark script can make this transition automatically after a configurable warm-up:
+
+```text
+MIDROID_SCENARIO=background MIDROID_WARMUP_SECONDS=10 \
+  bash tools/benchmark_android.sh dev.midroid.app 1200 midroid-balanced-background-01
+```
+
+The script sends `KEYCODE_HOME`, captures activity state after the transition, and for Midroid checks whether `MidroidDiag` contains `event=hidden`. This removes a major source of operator variance from background battery comparisons.
 
 Do not count a merely `onPause()` state as background suspension: Android may pause an activity while it remains visible in multi-window or while transient UI is on top. `MidroidDiag` emits `visible` and `hidden` lifecycle events so the measurement can verify the transition actually happened.
 
@@ -74,6 +93,8 @@ Use the actual package name in place of `com.android.chrome` when the installed 
 Optional environment variables:
 
 ```text
+MIDROID_SCENARIO=foreground-idle   # foreground-idle | background | manual
+MIDROID_WARMUP_SECONDS=5
 MIDROID_SAMPLE_INTERVAL=10
 MIDROID_BATTERY_UNPLUG=1
 ADB=/custom/path/to/adb
@@ -86,6 +107,7 @@ The script writes raw evidence rather than collapsing it into one score. This is
 Each run records:
 
 - device/build/brightness/refresh metadata;
+- selected scenario and warm-up duration;
 - WebView provider state;
 - battery state before and after;
 - package metadata and UID information;
@@ -97,7 +119,8 @@ Each run records:
 - raw `netstats` before and after;
 - activity process state;
 - jobscheduler state;
-- Midroid's privacy-safe `MidroidDiag` lifecycle log when the target is Midroid.
+- Midroid's privacy-safe `MidroidDiag` lifecycle log when the target is Midroid;
+- background-transition evidence in `scenario.txt` for the automated background scenario.
 
 ## Primary metrics
 
