@@ -1,3 +1,6 @@
+Failed to create stream fd: Operation not permitted
+Failed to create stream fd: Operation not permitted
+Failed to create stream fd: Operation not permitted
 package dev.midroid.app
 
 import android.app.DownloadManager
@@ -84,7 +87,7 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        webView?.let { powerController.onForeground(it, currentMode) }
+        webView?.let { powerController.onForeground(this, it, currentMode) }
     }
 
     override fun onStop() {
@@ -173,7 +176,7 @@ class MainActivity : ComponentActivity() {
             onMainFrameUrlChanged = { lastKnownUrl = it },
             onPageReady = { view ->
                 RuntimeDiagnostics.logPageReady(this, currentMode, lastKnownUrl)
-                powerController.onPageReady(view, currentMode)
+                powerController.onPageReady(this, view, currentMode)
             },
             onRendererGone = ::handleRendererGone,
         )
@@ -209,7 +212,7 @@ class MainActivity : ComponentActivity() {
 
         setContentView(root)
         created.loadUrl(url)
-        if (visibleToUser) powerController.onForeground(created, currentMode)
+        if (visibleToUser) powerController.onForeground(this, created, currentMode)
     }
 
     private fun handleRendererGone(deadView: WebView, detail: RenderProcessGoneDetail) {
