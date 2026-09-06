@@ -46,18 +46,22 @@ class WebViewPowerController {
     }
 
     private fun applyRefreshRatePreference(activity: Activity, webView: WebView, mode: PowerMode) {
-        val requestedRate = if (mode == PowerMode.ECO) {
-            60f
-        } else {
-            View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
-        }
-
         if (Build.VERSION.SDK_INT >= 36) {
+            val requestedRate = if (mode == PowerMode.ECO) {
+                60f
+            } else {
+                View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
+            }
             webView.propagateRequestedFrameRate(requestedRate, true)
             return
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            val requestedRate = if (mode == PowerMode.ECO) {
+                60f
+            } else {
+                View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
+            }
             webView.setRequestedFrameRate(requestedRate)
             return
         }
