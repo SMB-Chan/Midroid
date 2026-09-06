@@ -12,17 +12,20 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
+import dev.midroid.app.config.TextScale
 import dev.midroid.app.power.PowerMode
 
 class SetupScreen(
     activity: Activity,
     initialUrl: String,
     initialMode: PowerMode,
+    initialTextScale: TextScale,
     private val onCopyDiagnostics: () -> Unit,
-    private val onSave: (String, PowerMode, TextView) -> Unit,
+    private val onSave: (String, PowerMode, TextScale, TextView) -> Unit,
 ) : ScrollView(activity) {
     private val urlInput = EditText(activity)
     private val modeGroup = RadioGroup(activity)
+    private val textScaleGroup = RadioGroup(activity)
     private val errorText = TextView(activity)
 
     init {
@@ -76,6 +79,32 @@ class SetupScreen(
         }
         content.addView(modeGroup, matchWrap())
 
+        content.addView(TextView(activity).apply {
+            text = "Text scale"
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, dp(24), 0, dp(8))
+        }, matchWrap())
+
+        val densityDpi = activity.resources.displayMetrics.densityDpi
+        val screenWidthDp = activity.resources.configuration.screenWidthDp
+        TextScale.entries.forEach { scale ->
+            val resolved = scale.resolveTextZoom(densityDpi, screenWidthDp)
+            val label = if (scale == TextScale.AUTO) {
+                "${scale.title} (${resolved}% on this device)\n${scale.description}"
+            } else {
+                "${scale.title}\n${scale.description}"
+            }
+            val radio = RadioButton(activity).apply {
+                id = View.generateViewId()
+                tag = scale.key
+                text = label
+                setPadding(0, dp(6), 0, dp(6))
+                isChecked = scale == initialTextScale
+            }
+            textScaleGroup.addView(radio, matchWrap())
+        }
+        content.addView(textScaleGroup, matchWrap())
+
         errorText.apply {
             visibility = GONE
             setPadding(0, dp(12), 0, 0)
@@ -86,7 +115,7 @@ class SetupScreen(
             text = "Open Misskey"
             setOnClickListener {
                 errorText.visibility = GONE
-                onSave(urlInput.text.toString(), selectedMode(), errorText)
+                onSave(urlInput.text.toString(), selectedMode(), selectedTextScale(), errorText)
             }
         }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -130,6 +159,11 @@ class SetupScreen(
     private fun selectedMode(): PowerMode {
         val selected = modeGroup.findViewById<RadioButton>(modeGroup.checkedRadioButtonId)
         return PowerMode.fromKey(selected?.tag as? String)
+    }
+
+    private fun selectedTextScale(): TextScale {
+        val selected = textScaleGroup.findViewById<RadioButton>(textScaleGroup.checkedRadioButtonId)
+        return TextScale.fromKey(selected?.tag as? String)
     }
 
     private fun matchWrap() = LinearLayout.LayoutParams(

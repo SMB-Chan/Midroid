@@ -4,6 +4,7 @@ import android.app.DownloadManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -21,6 +22,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import dev.midroid.app.config.AppPreferences
 import dev.midroid.app.config.InstanceConfig
+import dev.midroid.app.config.TextScale
 import dev.midroid.app.diagnostics.RuntimeDiagnostics
 import dev.midroid.app.power.PowerMode
 import dev.midroid.app.power.WebViewPowerController
@@ -38,6 +40,7 @@ class MainActivity : ComponentActivity() {
     private var browserRoot: FrameLayout? = null
     private var currentInstance: InstanceConfig? = null
     private var currentMode: PowerMode = PowerMode.BALANCED
+    private var currentTextScale: TextScale = TextScale.AUTO
     private var pendingUrl: String? = null
     private var lastKnownUrl: String? = null
     private var visibleToUser = false
@@ -58,6 +61,7 @@ class MainActivity : ComponentActivity() {
 
         currentInstance = preferences.loadInstance()
         currentMode = preferences.loadPowerMode()
+        currentTextScale = preferences.loadTextScale()
         RuntimeDiagnostics.logAppStart(this, currentMode, currentInstance?.origin)
 
         val instance = currentInstance
@@ -99,6 +103,11 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        webView?.let { applyTextScale(it, newConfig) }
+    }
+
     override fun onDestroy() {
         destroyWebView()
         super.onDestroy()
@@ -126,13 +135,15 @@ class MainActivity : ComponentActivity() {
             activity = this,
             initialUrl = currentInstance?.origin.orEmpty(),
             initialMode = currentMode,
+            initialTextScale = currentTextScale,
             onCopyDiagnostics = ::copyDiagnostics,
-        ) { rawUrl, mode, errorView ->
+        ) { rawUrl, mode, textScale, errorView ->
             val result = InstanceConfig.parse(rawUrl)
             result.onSuccess { instance ->
                 currentInstance = instance
                 currentMode = mode
-                preferences.save(instance, mode)
+                currentTextScale = textScale
+                preferences.save(instance, mode, textScale)
                 showBrowser(instance.origin)
             }.onFailure { error ->
                 errorView.text = error.message ?: "Invalid instance URL."
@@ -164,6 +175,7 @@ class MainActivity : ComponentActivity() {
         val created = WebViewFactory.create(this)
         webView = created
 
+        applyTextScale(created)
         powerController.configure(this, created, currentMode)
 
         val externalNavigator = ExternalNavigator(this)
@@ -210,6 +222,12 @@ class MainActivity : ComponentActivity() {
         setContentView(root)
         created.loadUrl(url)
         if (visibleToUser) powerController.onForeground(this, created, currentMode)
+    }
+
+    private fun applyTextScale(view: WebView, configuration: Configuration = resources.configuration) {
+        val densityDpi = resources.displayMetrics.densityDpi
+        val screenWidthDp = configuration.screenWidthDp
+        view.settings.textZoom = currentTextScale.resolveTextZoom(densityDpi, screenWidthDp)
     }
 
     private fun handleRendererGone(deadView: WebView, detail: RenderProcessGoneDetail) {

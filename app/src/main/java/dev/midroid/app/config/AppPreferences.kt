@@ -15,10 +15,15 @@ class AppPreferences(context: Context) {
         return PowerMode.fromKey(preferences.getString(KEY_POWER_MODE, null))
     }
 
-    fun save(instance: InstanceConfig, mode: PowerMode) {
+    fun loadTextScale(): TextScale {
+        return TextScale.fromKey(preferences.getString(KEY_TEXT_SCALE, null))
+    }
+
+    fun save(instance: InstanceConfig, mode: PowerMode, textScale: TextScale) {
         preferences.edit()
             .putString(KEY_INSTANCE, instance.origin)
             .putString(KEY_POWER_MODE, mode.key)
+            .putString(KEY_TEXT_SCALE, textScale.key)
             .apply()
     }
 
@@ -26,5 +31,6 @@ class AppPreferences(context: Context) {
         private const val NAME = "midroid_preferences"
         private const val KEY_INSTANCE = "instance_origin"
         private const val KEY_POWER_MODE = "power_mode"
+        private const val KEY_TEXT_SCALE = "text_scale"
     }
 }
