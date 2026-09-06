@@ -2,6 +2,7 @@ package dev.midroid.app.power
 
 import android.app.Activity
 import android.os.Build
+import android.view.Surface
 import android.webkit.WebView
 
 class WebViewPowerController {
@@ -25,9 +26,7 @@ class WebViewPowerController {
             }
         }
 
-        val params = activity.window.attributes
-        params.preferredRefreshRate = if (mode == PowerMode.ECO) 60f else 0f
-        activity.window.attributes = params
+        applyRefreshRatePreference(activity, webView, mode)
     }
 
     fun onForeground(webView: WebView, mode: PowerMode) {
@@ -44,6 +43,26 @@ class WebViewPowerController {
 
     fun onPageReady(webView: WebView, mode: PowerMode) {
         applyDocumentPolicy(webView, mode)
+    }
+
+    private fun applyRefreshRatePreference(activity: Activity, webView: WebView, mode: PowerMode) {
+        val requestedRate = if (mode == PowerMode.ECO) 60f else 0f
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            webView.setFrameRate(
+                requestedRate,
+                Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+            )
+            return
+        }
+
+        @Suppress("DEPRECATION")
+        val params = activity.window.attributes
+        @Suppress("DEPRECATION")
+        run {
+            params.preferredRefreshRate = requestedRate
+            activity.window.attributes = params
+        }
     }
 
     private fun pauseMedia(webView: WebView) {
