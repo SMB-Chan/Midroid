@@ -6,12 +6,12 @@ Midroid is not a Chromium fork in the first stage. It is a small Android runtime
 
 ### Components
 
-- `MainActivity`: owns the browser lifecycle and renderer recovery.
+- `MainActivity`: a minimal AndroidX `ComponentActivity` that owns predictive-back dispatch, browser lifecycle and renderer recovery.
 - `InstanceConfig`: validates and normalizes the single trusted Misskey origin.
 - `WebViewFactory`: applies the security baseline for WebView.
 - `MidroidWebViewClient`: keeps the configured Misskey origin in-app and routes other top-level links externally.
 - `WebViewPowerController`: maps Eco/Balanced/Performance modes to renderer priority, foreground policy, background suspension and document-level motion policy.
-- `AppPreferences`: stores only the chosen origin and power mode. Authentication cookies remain managed by WebView/Android.
+- `AppPreferences`: stores only the chosen origin and power mode. Authentication cookies remain managed by WebView/Android. AndroidX Activity is the only non-test runtime library in the MVP and is used for API 36-compatible back/activity-result dispatch.
 
 ## Security model
 

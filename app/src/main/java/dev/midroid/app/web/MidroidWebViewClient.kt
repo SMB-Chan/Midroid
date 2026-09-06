@@ -11,6 +11,7 @@ import dev.midroid.app.config.InstanceConfig
 class MidroidWebViewClient(
     private val instance: InstanceConfig,
     private val externalNavigator: ExternalNavigator,
+    private val onMainFrameUrlChanged: (String) -> Unit,
     private val onPageReady: (WebView) -> Unit,
     private val onRendererGone: (WebView, RenderProcessGoneDetail) -> Unit,
 ) : WebViewClient() {
@@ -27,6 +28,7 @@ class MidroidWebViewClient(
 
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
+        onMainFrameUrlChanged(url)
     }
 
     override fun onPageFinished(view: WebView, url: String) {

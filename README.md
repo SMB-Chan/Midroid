@@ -6,7 +6,7 @@ The first stage deliberately **does not fork Chromium**. It uses Android System 
 
 ## MVP features
 
-- Native Kotlin Android app with no UI framework dependency.
+- Native Kotlin Android app with no UI framework; AndroidX Activity is used only for modern activity/back-navigation plumbing.
 - Connect to an arbitrary HTTPS Misskey instance.
 - Preserve WebView cookies/login state.
 - Keep same-origin Misskey navigation inside the app.

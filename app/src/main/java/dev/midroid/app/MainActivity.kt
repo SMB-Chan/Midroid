@@ -1,12 +1,13 @@
 package dev.midroid.app
 
-import android.app.Activity
 import android.app.DownloadManager
 import android.content.Context
-import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import android.view.Gravity
 import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
@@ -26,7 +27,7 @@ import dev.midroid.app.web.MidroidWebChromeClient
 import dev.midroid.app.web.MidroidWebViewClient
 import dev.midroid.app.web.WebViewFactory
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     private lateinit var preferences: AppPreferences
     private val powerController = WebViewPowerController()
 
@@ -35,12 +36,22 @@ class MainActivity : Activity() {
     private var currentInstance: InstanceConfig? = null
     private var currentMode: PowerMode = PowerMode.BALANCED
     private var pendingUrl: String? = null
+    private var lastKnownUrl: String? = null
     private var foreground = false
     private var fileCallback: ValueCallback<Array<Uri>>? = null
+
+    private val fileChooserLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
+        fileCallback?.onReceiveValue(uris)
+        fileCallback = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         preferences = AppPreferences(this)
+        installBackHandler()
 
         currentInstance = preferences.loadInstance()
         currentMode = preferences.loadPowerMode()
@@ -77,25 +88,20 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
-    @Deprecated("Platform back callback retained to avoid an AndroidX dependency in the MVP")
-    override fun onBackPressed() {
-        val active = webView
-        if (active != null && active.canGoBack()) {
-            active.goBack()
-        } else {
-            super.onBackPressed()
-        }
-    }
+    private fun installBackHandler() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val active = webView
+                if (active != null && active.canGoBack()) {
+                    active.goBack()
+                    return
+                }
 
-    @Deprecated("Used for the platform WebView file chooser without AndroidX")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (requestCode == FILE_CHOOSER_REQUEST) {
-            val result = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
-            fileCallback?.onReceiveValue(result)
-            fileCallback = null
-            return
-        }
-        super.onActivityResult(requestCode, resultCode, data)
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+                isEnabled = true
+            }
+        })
     }
 
     private fun showSetup() {
@@ -122,6 +128,7 @@ class MainActivity : Activity() {
     private fun showBrowser(url: String) {
         val instance = currentInstance ?: return
         destroyWebView()
+        lastKnownUrl = url
 
         val root = FrameLayout(this)
         browserRoot = root
@@ -135,6 +142,7 @@ class MainActivity : Activity() {
         created.webViewClient = MidroidWebViewClient(
             instance = instance,
             externalNavigator = externalNavigator,
+            onMainFrameUrlChanged = { lastKnownUrl = it },
             onPageReady = { view -> powerController.onPageReady(view, currentMode) },
             onRendererGone = ::handleRendererGone,
         )
@@ -174,7 +182,7 @@ class MainActivity : Activity() {
     }
 
     private fun handleRendererGone(deadView: WebView, detail: RenderProcessGoneDetail) {
-        val restoreUrl = deadView.url ?: currentInstance?.origin
+        val restoreUrl = lastKnownUrl ?: currentInstance?.origin
         val root = browserRoot
         root?.removeView(deadView)
         if (webView === deadView) webView = null
@@ -197,7 +205,7 @@ class MainActivity : Activity() {
         fileCallback?.onReceiveValue(null)
         fileCallback = callback
         return try {
-            startActivityForResult(params.createIntent(), FILE_CHOOSER_REQUEST)
+            fileChooserLauncher.launch(params.createIntent())
             true
         } catch (_: Exception) {
             fileCallback = null
@@ -251,7 +259,4 @@ class MainActivity : Activity() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
-    companion object {
-        private const val FILE_CHOOSER_REQUEST = 7001
-    }
 }
