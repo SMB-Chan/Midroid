@@ -19,6 +19,20 @@ The signing key must be retained permanently for the lifetime of the update chan
 
 Do not commit the private keystore to the repository. Keep it in a password manager/offline backup and store only its base64 form and passwords in GitHub Actions Secrets.
 
+## One-time bootstrap
+
+On a trusted local machine with JDK `keytool` and authenticated GitHub CLI (`gh`) installed, run:
+
+```text
+bash tools/bootstrap_update_signing.sh
+```
+
+The script generates a 4096-bit RSA JKS under `~/.midroid/midroid-update.jks` by default, prompts for passwords without echoing them, and streams the four required values directly into `gh secret set`. It refuses to overwrite an existing key. The keystore stays on the local machine and must be backed up separately.
+
+You can change the destination with `MIDROID_SIGNING_KEYSTORE_PATH`, the GitHub repository with `MIDROID_GITHUB_REPO`, the alias with `MIDROID_SIGNING_KEY_ALIAS`, and the certificate DN with `MIDROID_SIGNING_DNAME`.
+
+Private-key file extensions are ignored by `.gitignore`, but that is only a final guardrail: keep signing material outside the repository working tree.
+
 ## Versioning
 
 CI supplies a monotonically increasing `versionCode` from the GitHub Actions workflow run number and a matching `0.1.0-ci.<run>` version name. Local builds without those environment variables keep the project defaults.

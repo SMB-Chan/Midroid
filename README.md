@@ -45,6 +45,8 @@ gradle lint testDebugUnitTest assembleDebug assembleRelease
 
 GitHub Actions always uploads a `Midroid-ci-debug-apk` developer artifact. When the four stable signing secrets documented in `docs/UPDATES.md` are configured, CI additionally signs the **release** build and uploads it as `Midroid-update-apk`. The long-lived update key is never used for the debuggable build type. Until those secrets are configured, the release build is verified but the update-compatible artifact is intentionally skipped rather than being mislabeled as safe for in-place updates.
 
+To initialize the stable signing track from a trusted local machine, run `bash tools/bootstrap_update_signing.sh`. It creates the signing key outside the repository by default and configures the required GitHub Actions Secrets through authenticated `gh`; see `docs/UPDATES.md` before using it.
+
 Every published APK artifact includes an APK SHA-256 file and `apksigner --print-certs` output so the signing identity can be checked between builds. CI also assigns a monotonically increasing `versionCode` from the workflow run number.
 
 See `docs/UPDATES.md` before installing the stable update track. Historical CI debug builds used temporary debug signing identities, so the first migration to the stable signing key can require one reinstall; later stable-track APKs update in place while retaining Android app data and the WebView login state.

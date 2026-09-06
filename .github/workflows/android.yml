@@ -62,8 +62,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.6.0
-      - name: Validate benchmark tooling
-        run: bash -n tools/benchmark_android.sh
+      - name: Validate shell tooling
+        run: |
+          bash -n tools/benchmark_android.sh
+          bash -n tools/bootstrap_update_signing.sh
       - name: Verify debug and release builds
         run: gradle --stacktrace lint testDebugUnitTest assembleDebug assembleRelease
 

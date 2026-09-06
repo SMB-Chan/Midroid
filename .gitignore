@@ -4,7 +4,15 @@
 /.idea/
 .DS_Store
 /build/
-/captures/
+captures/
 .externalNativeBuild/
 .cxx/
 app/build/
+
+# Signing material must never enter version control.
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+midroid-signing.env
