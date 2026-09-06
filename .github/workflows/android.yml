@@ -12,12 +12,43 @@ concurrency:
   group: android-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
+env:
+  MIDROID_VERSION_CODE: ${{ github.run_number }}
+  MIDROID_VERSION_NAME: 0.1.0-ci.${{ github.run_number }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+
+      - name: Prepare stable update signing
+        id: update_signing
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.MIDROID_SIGNING_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.MIDROID_SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MIDROID_SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MIDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$KEYSTORE_B64" && -n "$STORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
+            keystore="$RUNNER_TEMP/midroid-update.jks"
+            printf '%s' "$KEYSTORE_B64" | base64 --decode > "$keystore"
+            chmod 600 "$keystore"
+            {
+              echo "MIDROID_SIGNING_STORE_FILE=$keystore"
+              echo "MIDROID_SIGNING_STORE_PASSWORD=$STORE_PASSWORD"
+              echo "MIDROID_SIGNING_KEY_ALIAS=$KEY_ALIAS"
+              echo "MIDROID_SIGNING_KEY_PASSWORD=$KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+            echo "stable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stable=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Stable update signing is not configured; this run will use an ephemeral CI debug signature."
+          fi
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -35,10 +66,32 @@ jobs:
         run: bash -n tools/benchmark_android.sh
       - name: Verify
         run: gradle --stacktrace lint testDebugUnitTest assembleDebug
-      - name: Upload debug APK
+      - name: Record APK identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="app/build/outputs/apk/debug/app-debug.apk"
+          sha256sum "$apk" | tee app/build/outputs/apk/debug/app-debug.apk.sha256
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" \
+            | tee app/build/outputs/apk/debug/app-debug.signing.txt
+      - name: Upload CI debug APK
         uses: actions/upload-artifact@v7
         with:
-          name: Midroid-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Midroid-ci-debug-apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk.sha256
+            app/build/outputs/apk/debug/app-debug.signing.txt
           if-no-files-found: error
           retention-days: 14
+      - name: Upload update-compatible APK
+        if: steps.update_signing.outputs.stable == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: Midroid-update-apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk.sha256
+            app/build/outputs/apk/debug/app-debug.signing.txt
+          if-no-files-found: error
+          retention-days: 30
