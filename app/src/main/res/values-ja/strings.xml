@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Midroid</string>
+    <string name="settings">設定</string>
+    <string name="setup_intro">Android System WebViewを基盤に、ライフサイクルを意識して動作するMisskeyランタイムです。</string>
+    <string name="misskey_instance">Misskeyインスタンス</string>
+    <string name="misskey_instance_hint">https://misskey.example</string>
+    <string name="power_mode">動作モード</string>
+    <string name="power_eco_title">省電力</string>
+    <string name="power_eco_description">60Hzを優先し、アニメーションやメディア動作を抑えて消費電力を低減します。</string>
+    <string name="power_balanced_title">バランス</string>
+    <string name="power_balanced_description">Misskeyの通常表示を保ちつつ、バックグラウンド処理を積極的に停止します。</string>
+    <string name="power_performance_title">パフォーマンス</string>
+    <string name="power_performance_description">前面表示時のフレームレート制限を行わず、WebViewの描画優先度を最大化します。</string>
+    <string name="text_scale">文字サイズ</string>
+    <string name="text_scale_auto_title">自動</string>
+    <string name="text_scale_auto_description">画面密度と横幅に合わせて自動調整します。</string>
+    <string name="text_scale_100_title">100%</string>
+    <string name="text_scale_100_description">サイト標準の文字サイズを使用します。</string>
+    <string name="text_scale_115_title">115%</string>
+    <string name="text_scale_115_description">普段使い向けに文字を少し大きくします。</string>
+    <string name="text_scale_130_title">130%</string>
+    <string name="text_scale_130_description">読みやすさを重視して文字を大きくします。</string>
+    <string name="text_scale_145_title">145%</string>
+    <string name="text_scale_145_description">Midroid内蔵設定で最大の文字サイズです。</string>
+    <string name="text_scale_auto_current">%1$s（この端末では%2$d%%）\n%3$s</string>
+    <string name="reaction_size">リアクションサイズ</string>
+    <string name="reaction_size_description">文字サイズとは独立して、リアクションボタン・絵文字・タップ領域だけを変更します。</string>
+    <string name="reaction_standard_title">標準</string>
+    <string name="reaction_standard_description">52px。画面の情報量を保ちながら押しやすいサイズです。</string>
+    <string name="reaction_large_title">大</string>
+    <string name="reaction_large_description">60px。見やすさと押しやすさを重視した推奨サイズです。</string>
+    <string name="reaction_extra_large_title">特大</string>
+    <string name="reaction_extra_large_description">68px。視認性を最優先した最大サイズです。</string>
+    <string name="open_misskey">Misskeyを開く</string>
+    <string name="webview_provider_unavailable">WebViewプロバイダー：利用できません</string>
+    <string name="webview_provider">WebViewプロバイダー：%1$s %2$s</string>
+    <string name="unknown">不明</string>
+    <string name="copy_diagnostics">診断情報をコピー</string>
+    <string name="privacy_note">Midroidは選択したインスタンスとログインCookieを端末内に保存します。HTTPSが必須です。外部リンクは既定のブラウザで開きます。診断情報にはインスタンスのオリジン、端末／WebViewのバージョン、動作モード、Androidの省電力状態のみが含まれます。</string>
+    <string name="invalid_instance_url">インスタンスURLが正しくありません。</string>
+</resources>
