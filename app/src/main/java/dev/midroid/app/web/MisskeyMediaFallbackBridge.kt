@@ -1,8 +1,44 @@
 package dev.midroid.app.web
 
 import android.webkit.WebView
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import dev.midroid.app.config.InstanceConfig
+import dev.midroid.app.media.NativeAudioRequest
 
 class MisskeyMediaFallbackBridge {
+    companion object {
+        private const val JS_OBJECT_NAME = "MidroidNativeAudio"
+    }
+
+    fun attach(
+        webView: WebView,
+        instance: InstanceConfig,
+        onNativeAudioRequested: (NativeAudioRequest) -> Unit,
+    ): Boolean {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+            return false
+        }
+
+        WebViewCompat.addWebMessageListener(
+            webView,
+            JS_OBJECT_NAME,
+            setOf(instance.origin),
+            WebViewCompat.WebMessageListener { sourceWebView, message, sourceOrigin, isMainFrame, _ ->
+                if (
+                    sourceWebView === webView &&
+                    isMainFrame &&
+                    instance.owns(sourceOrigin.toString())
+                ) {
+                    message.data
+                        ?.let(NativeAudioRequest::parse)
+                        ?.let(onNativeAudioRequested)
+                }
+            },
+        )
+        return true
+    }
+
     fun install(webView: WebView) {
         webView.evaluateJavascript(
             """
@@ -112,8 +148,15 @@ class MisskeyMediaFallbackBridge {
                 event?.stopPropagation?.();
                 const target = buildNativeUrl();
                 if (!target) return false;
-                // Keep this as a top-frame navigation only. MidroidWebViewClient rejects the
-                // private scheme from subframes, so embedded content cannot trigger native UI.
+
+                const bridge = window.MidroidNativeAudio;
+                if (bridge && typeof bridge.postMessage === 'function') {
+                  bridge.postMessage(target);
+                  return true;
+                }
+
+                // Compatibility fallback for WebView implementations without WEB_MESSAGE_LISTENER.
+                // MidroidWebViewClient consumes this scheme and only honors main-frame requests.
                 window.location.assign(target);
                 return true;
               };
@@ -170,8 +213,6 @@ class MisskeyMediaFallbackBridge {
                   });
                 }
 
-                // One short settle pass handles delayed SPA/media updates without stacking
-                // four timers per DOM/event mutation.
                 if (settleTimer !== null) clearTimeout(settleTimer);
                 settleTimer = setTimeout(() => {
                   settleTimer = null;
@@ -215,8 +256,10 @@ class MisskeyMediaFallbackBridge {
                       return;
                     }
                   }
-                  if (record.type === 'attributes' &&
-                      (record.target instanceof HTMLAudioElement || record.target instanceof HTMLSourceElement)) {
+                  if (
+                    record.type === 'attributes' &&
+                    (record.target instanceof HTMLAudioElement || record.target instanceof HTMLSourceElement)
+                  ) {
                     scheduleRefresh();
                     return;
                   }
