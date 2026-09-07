@@ -12,10 +12,10 @@ class ReactionScalePolicyTest {
                 52, 200, 8,
                 40, 160,
                 48, 32,
-                34, 102,
-                44, 44,
-                26, 22,
-                6, 100,
+                36, 108,
+                46, 46,
+                28, 24,
+                6, 102,
             ),
             ReactionScalePolicy.forScale(ReactionScale.STANDARD),
         )
@@ -28,10 +28,10 @@ class ReactionScalePolicyTest {
                 60, 230, 10,
                 48, 192,
                 56, 40,
-                42, 126,
-                50, 50,
-                30, 26,
-                8, 108,
+                46, 138,
+                54, 54,
+                34, 30,
+                8, 110,
             ),
             ReactionScalePolicy.forScale(ReactionScale.LARGE),
         )
@@ -40,10 +40,10 @@ class ReactionScalePolicyTest {
                 68, 260, 12,
                 58, 232,
                 64, 48,
-                50, 150,
-                58, 58,
-                36, 32,
-                8, 116,
+                58, 174,
+                64, 64,
+                42, 38,
+                8, 120,
             ),
             ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE),
         )
@@ -92,8 +92,21 @@ class ReactionScalePolicyTest {
 
         val extraLarge = ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE)
         assertEquals(true, extraLarge.noteEmojiCssPx >= 58)
-        assertEquals(true, extraLarge.notificationReactionCssPx >= 50)
-        assertEquals(true, extraLarge.notificationStatusIconCssPx >= 36)
+        assertEquals(true, extraLarge.notificationReactionCssPx >= 58)
+        assertEquals(true, extraLarge.notificationAvatarCssPx >= 64)
+        assertEquals(true, extraLarge.notificationStatusIconCssPx >= 42)
+    }
+
+    @Test
+    fun notificationSurfacesHaveVisibleModeSeparation() {
+        val standard = ReactionScalePolicy.forScale(ReactionScale.STANDARD)
+        val large = ReactionScalePolicy.forScale(ReactionScale.LARGE)
+        val extraLarge = ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE)
+
+        assertEquals(true, large.notificationReactionCssPx - standard.notificationReactionCssPx >= 8)
+        assertEquals(true, extraLarge.notificationReactionCssPx - large.notificationReactionCssPx >= 10)
+        assertEquals(true, large.notificationAvatarCssPx - standard.notificationAvatarCssPx >= 8)
+        assertEquals(true, extraLarge.notificationAvatarCssPx - large.notificationAvatarCssPx >= 10)
     }
 
     @Test
