@@ -5,6 +5,14 @@
     <string name="setup_intro">A lifecycle-aware Misskey runtime built around Android System WebView.</string>
     <string name="misskey_instance">Misskey instance</string>
     <string name="misskey_instance_hint">https://misskey.example</string>
+    <string name="account_instance_managed">This instance belongs to the current account. Add another account to use a different instance or login.</string>
+    <string name="accounts">Accounts</string>
+    <string name="switch_account">Switch account</string>
+    <string name="add_account">Add account</string>
+    <string name="add_account_description">Enter a Misskey instance. Midroid will open it in an isolated WebView profile so you can sign in independently.</string>
+    <string name="multi_profile_unsupported">This Android System WebView does not support isolated multi-account profiles. Update Android System WebView or Chrome to use multiple accounts.</string>
+    <string name="account_added">Account profile added. Sign in to Misskey in this isolated session.</string>
+    <string name="cancel">Cancel</string>
     <string name="power_mode">Power mode</string>
     <string name="power_eco_title">Eco</string>
     <string name="power_eco_description">60 Hz preference, reduced motion and conservative media behavior.</string>
@@ -37,7 +45,7 @@
     <string name="webview_provider">WebView provider: %1$s %2$s</string>
     <string name="unknown">unknown</string>
     <string name="copy_diagnostics">Copy diagnostics</string>
-    <string name="privacy_note">Midroid stores the selected instance and login cookies locally. HTTPS is required. External links open in your default browser. Diagnostic copies contain only the instance origin, device/WebView version, power mode and Android power-saver state.</string>
+    <string name="privacy_note">Midroid stores account metadata and WebView login state locally. Each additional account uses an isolated WebView profile with separate cookies and web storage. HTTPS is required. External links open in your default browser.</string>
     <string name="invalid_instance_url">Invalid instance URL.</string>
     <string name="native_audio_title">Android audio player</string>
     <string name="native_audio_preparing">Preparing audio…</string>
