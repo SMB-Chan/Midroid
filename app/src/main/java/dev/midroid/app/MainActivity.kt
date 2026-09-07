@@ -7,6 +7,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
@@ -60,7 +61,7 @@ class MainActivity : ComponentActivity() {
     private var accounts: List<AccountProfile> = emptyList()
     private var currentAccount: AccountProfile? = null
     private var webView: WebView? = null
-    private var browserRoot: LinearLayout? = null
+    private var browserRoot: FrameLayout? = null
     private var nativeAudioPlayer: NativeAudioPlayerDialog? = null
     private var currentInstance: InstanceConfig? = null
     private var currentMode: PowerMode = PowerMode.BALANCED
@@ -427,9 +428,7 @@ class MainActivity : ComponentActivity() {
         lastKnownUrl = safeUrl
         navigationState.reset(safeUrl)
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
+        val root = FrameLayout(this)
         browserRoot = root
 
         val created = runCatching {
@@ -481,14 +480,15 @@ class MainActivity : ComponentActivity() {
             text = "⇄"
             contentDescription = getString(R.string.switch_account)
             textSize = 18f
-            alpha = 0.8f
+            alpha = 0.9f
             setTextColor(Color.WHITE)
-            setBackgroundColor(0xAA202124.toInt())
-            minWidth = dp(48)
-            minimumWidth = dp(48)
-            minHeight = dp(48)
-            minimumHeight = dp(48)
+            background = browserControlBackground()
+            minWidth = dp(40)
+            minimumWidth = dp(40)
+            minHeight = dp(40)
+            minimumHeight = dp(40)
             setPadding(0, 0, 0, 0)
+            stateListAnimator = null
             setOnClickListener { showAccountSwitcher() }
         }
 
@@ -496,14 +496,15 @@ class MainActivity : ComponentActivity() {
             text = "♫"
             contentDescription = getString(R.string.native_audio_fallback)
             textSize = 19f
-            alpha = 0.8f
+            alpha = 0.9f
             setTextColor(Color.WHITE)
-            setBackgroundColor(0xAA202124.toInt())
-            minWidth = dp(48)
-            minimumWidth = dp(48)
-            minHeight = dp(48)
-            minimumHeight = dp(48)
+            background = browserControlBackground()
+            minWidth = dp(40)
+            minimumWidth = dp(40)
+            minHeight = dp(40)
+            minimumHeight = dp(40)
             setPadding(0, 0, 0, 0)
+            stateListAnimator = null
             setOnClickListener {
                 mediaFallbackBridge.install(created)
                 mediaFallbackBridge.requestPlayback(created) { started ->
@@ -522,38 +523,64 @@ class MainActivity : ComponentActivity() {
             text = "⚙"
             contentDescription = getString(R.string.settings)
             textSize = 18f
-            alpha = 0.72f
+            alpha = 0.9f
             setTextColor(Color.WHITE)
-            setBackgroundColor(0xAA202124.toInt())
-            minWidth = dp(48)
-            minimumWidth = dp(48)
-            minHeight = dp(48)
-            minimumHeight = dp(48)
+            background = browserControlBackground()
+            minWidth = dp(40)
+            minimumWidth = dp(40)
+            minHeight = dp(40)
+            minimumHeight = dp(40)
             setPadding(0, 0, 0, 0)
+            stateListAnimator = null
             setOnClickListener { showSetup() }
+        }
+
+        fun browserControlParams(): LinearLayout.LayoutParams {
+            return LinearLayout.LayoutParams(dp(40), dp(40)).apply {
+                marginStart = dp(4)
+            }
         }
 
         val toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            isClickable = false
+            isFocusable = false
+            setPadding(dp(10), dp(2), dp(6), dp(2))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0x66202124.toInt(), 0x11202124),
+            )
+            elevation = dp(4).toFloat()
             addView(TextView(this@MainActivity).apply {
                 text = "${getString(R.string.app_name)} · ${account.displayLabel()}"
-                textSize = 16f
+                textSize = 15f
+                alpha = 0.94f
+                setTextColor(Color.WHITE)
+                setShadowLayer(4f, 0f, 1f, Color.BLACK)
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
-                setPadding(dp(16), 0, dp(4), 0)
+                setPadding(dp(6), 0, dp(4), 0)
             }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            addView(accountButton, LinearLayout.LayoutParams(dp(48), dp(48)))
-            addView(nativeAudioButton, LinearLayout.LayoutParams(dp(48), dp(48)))
-            addView(settingsButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+            addView(accountButton, browserControlParams())
+            addView(nativeAudioButton, browserControlParams())
+            addView(settingsButton, browserControlParams())
         }
-        root.addView(
-            toolbar,
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)),
-        )
+
         root.addView(
             created,
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f),
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        root.addView(
+            toolbar,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dp(44),
+                Gravity.TOP,
+            ),
         )
 
         setInsetContentView(root)
@@ -693,6 +720,13 @@ class MainActivity : ComponentActivity() {
         }
         setContentView(container)
         ViewCompat.requestApplyInsets(container)
+    }
+
+    private fun browserControlBackground(): GradientDrawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(0x7A202124)
+        }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
