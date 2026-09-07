@@ -16,12 +16,13 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      MIDROID_VERSION_CODE: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Validate release tag
+      - name: Validate release tag and version code
         id: version
         shell: bash
         run: |
@@ -32,10 +33,34 @@ jobs:
             echo "Unsupported release tag: $tag" >&2
             exit 1
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "MIDROID_VERSION_NAME=$version" >> "$GITHUB_ENV"
 
-      - name: Require stable release signing
+          # Public releases use a date-based code so the first stable release is
+          # newer than historical CI artifacts whose codes were small run numbers.
+          # YYYYMMDDNN remains below Android's 2,100,000,000 ceiling through 2099.
+          day="$(date -u +%Y%m%d)"
+          sequence=$((10#${GITHUB_RUN_NUMBER} % 100))
+          version_code="$(printf '%s%02d' "$day" "$sequence")"
+          if (( version_code <= 0 || version_code > 2100000000 )); then
+            echo "Generated Android versionCode is outside the supported range: $version_code" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+          echo "MIDROID_VERSION_NAME=$version" >> "$GITHUB_ENV"
+          echo "MIDROID_VERSION_CODE=$version_code" >> "$GITHUB_ENV"
+
+      - name: Require tagged commit on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Release tag must point to a commit already contained in main." >&2
+            exit 1
+          fi
+
+      - name: Prepare stable release signing file
         shell: bash
         env:
           KEYSTORE_B64: ${{ secrets.MIDROID_SIGNING_KEYSTORE_B64 }}
@@ -51,12 +76,6 @@ jobs:
           keystore="$RUNNER_TEMP/midroid-update.jks"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$keystore"
           chmod 600 "$keystore"
-          {
-            echo "MIDROID_SIGNING_STORE_FILE=$keystore"
-            echo "MIDROID_SIGNING_STORE_PASSWORD=$STORE_PASSWORD"
-            echo "MIDROID_SIGNING_KEY_ALIAS=$KEY_ALIAS"
-            echo "MIDROID_SIGNING_KEY_PASSWORD=$KEY_PASSWORD"
-          } >> "$GITHUB_ENV"
 
       - uses: actions/setup-java@v5
         with:
@@ -80,12 +99,24 @@ jobs:
           bash -n tools/benchmark_android.sh
           bash -n tools/bootstrap_update_signing.sh
 
-      - name: Verify and build release
-        run: gradle --stacktrace lint testDebugUnitTest assembleRelease
+      - name: Verify and build signed release
+        env:
+          MIDROID_SIGNING_STORE_FILE: ${{ runner.temp }}/midroid-update.jks
+          MIDROID_SIGNING_STORE_PASSWORD: ${{ secrets.MIDROID_SIGNING_STORE_PASSWORD }}
+          MIDROID_SIGNING_KEY_ALIAS: ${{ secrets.MIDROID_SIGNING_KEY_ALIAS }}
+          MIDROID_SIGNING_KEY_PASSWORD: ${{ secrets.MIDROID_SIGNING_KEY_PASSWORD }}
+        run: gradle --no-daemon --stacktrace lint testDebugUnitTest assembleRelease
 
-      - name: Verify release APK and prepare assets
+      - name: Remove release keystore
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/midroid-update.jks"
+
+      - name: Verify release identity and prepare assets
         id: assets
         shell: bash
+        env:
+          EXPECTED_RELEASE_CERT_SHA256: d6540699dafc1c37764948e1efed476580162c0add4b1a2b18cd6854cc5206c6
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
@@ -102,8 +133,19 @@ jobs:
           sha="$out/Midroid-${version}.apk.sha256"
           cert="$out/Midroid-${version}.signing.txt"
 
-          sha256sum "$apk" | tee "$sha"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" | tee "$cert"
+          actual_cert="$(awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print tolower($2); exit}' "$cert")"
+          if [[ "$actual_cert" != "$EXPECTED_RELEASE_CERT_SHA256" ]]; then
+            echo "Release certificate mismatch. Refusing to publish." >&2
+            echo "Expected: $EXPECTED_RELEASE_CERT_SHA256" >&2
+            echo "Actual:   ${actual_cert:-missing}" >&2
+            exit 1
+          fi
+
+          (
+            cd "$out"
+            sha256sum "$(basename "$apk")"
+          ) | tee "$sha"
 
           echo "apk=$apk" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
