@@ -24,6 +24,7 @@ class SetupScreen(
     initialTextScale: TextScale,
     initialReactionScale: ReactionScale,
     private val onCopyDiagnostics: () -> Unit,
+    instanceEditable: Boolean = true,
     private val onSave: (String, PowerMode, TextScale, ReactionScale) -> String?,
 ) : ScrollView(activity) {
     private val urlInput = EditText(activity)
@@ -62,8 +63,17 @@ class SetupScreen(
             hint = activity.getString(R.string.misskey_instance_hint)
             setSingleLine(true)
             setText(initialUrl)
+            isEnabled = instanceEditable
         }
         content.addView(urlInput, matchWrap())
+
+        if (!instanceEditable) {
+            content.addView(TextView(activity).apply {
+                text = activity.getString(R.string.account_instance_managed)
+                textSize = 12f
+                setPadding(0, dp(6), 0, 0)
+            }, matchWrap())
+        }
 
         content.addView(TextView(activity).apply {
             text = activity.getString(R.string.power_mode)
