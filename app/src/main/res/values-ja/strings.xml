@@ -39,4 +39,17 @@
     <string name="copy_diagnostics">診断情報をコピー</string>
     <string name="privacy_note">Midroidは選択したインスタンスとログインCookieを端末内に保存します。HTTPSが必須です。外部リンクは既定のブラウザで開きます。診断情報にはインスタンスのオリジン、端末／WebViewのバージョン、動作モード、Androidの省電力状態のみが含まれます。</string>
     <string name="invalid_instance_url">インスタンスURLが正しくありません。</string>
+    <string name="native_audio_title">Android音声プレイヤー</string>
+    <string name="native_audio_preparing">音声を準備しています…</string>
+    <string name="native_audio_ready">再生準備完了</string>
+    <string name="native_audio_playing">Androidネイティブ音声で再生中</string>
+    <string name="native_audio_paused">一時停止中</string>
+    <string name="native_audio_finished">再生が終了しました</string>
+    <string name="native_audio_play">再生</string>
+    <string name="native_audio_pause">一時停止</string>
+    <string name="native_audio_failed">Androidでもこの音声を再生できませんでした。</string>
+    <string name="native_audio_focus_failed">音声出力を一時的に利用できません。</string>
+    <string name="native_audio_invalid_url">不正な音声URLをブロックしました。</string>
+    <string name="native_audio_position">%1$s / %2$s</string>
+    <string name="close">閉じる</string>
 </resources>
