@@ -12,6 +12,7 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
+import dev.midroid.app.config.ReactionScale
 import dev.midroid.app.config.TextScale
 import dev.midroid.app.power.PowerMode
 
@@ -20,12 +21,14 @@ class SetupScreen(
     initialUrl: String,
     initialMode: PowerMode,
     initialTextScale: TextScale,
+    initialReactionScale: ReactionScale,
     private val onCopyDiagnostics: () -> Unit,
-    private val onSave: (String, PowerMode, TextScale) -> String?,
+    private val onSave: (String, PowerMode, TextScale, ReactionScale) -> String?,
 ) : ScrollView(activity) {
     private val urlInput = EditText(activity)
     private val modeGroup = RadioGroup(activity)
     private val textScaleGroup = RadioGroup(activity)
+    private val reactionScaleGroup = RadioGroup(activity)
     private val errorText = TextView(activity)
 
     init {
@@ -105,6 +108,30 @@ class SetupScreen(
         }
         content.addView(textScaleGroup, matchWrap())
 
+        content.addView(TextView(activity).apply {
+            text = "Reaction size"
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, dp(24), 0, dp(8))
+        }, matchWrap())
+
+        content.addView(TextView(activity).apply {
+            text = "Independent from text scale. Changes reaction buttons, emoji and tap targets only."
+            textSize = 13f
+            setPadding(0, 0, 0, dp(4))
+        }, matchWrap())
+
+        ReactionScale.entries.forEach { scale ->
+            val radio = RadioButton(activity).apply {
+                id = View.generateViewId()
+                tag = scale.key
+                text = "${scale.title}\n${scale.description}"
+                setPadding(0, dp(6), 0, dp(6))
+                isChecked = scale == initialReactionScale
+            }
+            reactionScaleGroup.addView(radio, matchWrap())
+        }
+        content.addView(reactionScaleGroup, matchWrap())
+
         errorText.apply {
             visibility = GONE
             setPadding(0, dp(12), 0, 0)
@@ -114,7 +141,12 @@ class SetupScreen(
         content.addView(Button(activity).apply {
             text = "Open Misskey"
             setOnClickListener {
-                val error = onSave(urlInput.text.toString(), selectedMode(), selectedTextScale())
+                val error = onSave(
+                    urlInput.text.toString(),
+                    selectedMode(),
+                    selectedTextScale(),
+                    selectedReactionScale(),
+                )
                 if (error == null) {
                     errorText.visibility = GONE
                 } else {
@@ -168,6 +200,11 @@ class SetupScreen(
     private fun selectedTextScale(): TextScale {
         val selected = textScaleGroup.findViewById<RadioButton>(textScaleGroup.checkedRadioButtonId)
         return TextScale.fromKey(selected?.tag as? String)
+    }
+
+    private fun selectedReactionScale(): ReactionScale {
+        val selected = reactionScaleGroup.findViewById<RadioButton>(reactionScaleGroup.checkedRadioButtonId)
+        return ReactionScale.fromKey(selected?.tag as? String)
     }
 
     private fun matchWrap() = LinearLayout.LayoutParams(
