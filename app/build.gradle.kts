@@ -13,6 +13,25 @@ val hasUpdateSigning = listOf(
     updateSigningKeyPassword,
 ).all { it != null }
 
+val launcherIconSource = layout.projectDirectory.file("launcher-icon-foreground.b64")
+val generatedLauncherResDir = layout.buildDirectory.dir("generated/midroidLauncher/res")
+val generateLauncherIcon = tasks.register("generateLauncherIcon") {
+    inputs.file(launcherIconSource)
+    outputs.dir(generatedLauncherResDir)
+
+    doLast {
+        val encoded = launcherIconSource.asFile.readText().trim()
+        check(encoded.isNotBlank()) { "launcher-icon-foreground.b64 is empty" }
+
+        val targetDir = generatedLauncherResDir.get().asFile
+            .resolve("mipmap-xxxhdpi")
+            .apply { mkdirs() }
+        targetDir.resolve("ic_launcher_foreground.webp").writeBytes(
+            java.util.Base64.getDecoder().decode(encoded),
+        )
+    }
+}
+
 android {
     namespace = "dev.midroid.app"
     compileSdk = 36
@@ -23,6 +42,10 @@ android {
         targetSdk = 36
         versionCode = System.getenv("MIDROID_VERSION_CODE")?.toIntOrNull()?.coerceAtLeast(1) ?: 1
         versionName = System.getenv("MIDROID_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "0.1.0"
+    }
+
+    sourceSets {
+        getByName("main").res.srcDir(generatedLauncherResDir)
     }
 
     signingConfigs {
@@ -65,6 +88,10 @@ android {
         abortOnError = true
         warningsAsErrors = false
     }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(generateLauncherIcon)
 }
 
 dependencies {
