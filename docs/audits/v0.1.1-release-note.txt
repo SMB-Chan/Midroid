@@ -1,0 +1,3 @@
+Midroid v0.1.1 release preparation
+
+Fixes the native audio fallback scope regression reported after v0.1.0.
