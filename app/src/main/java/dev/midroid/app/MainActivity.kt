@@ -28,6 +28,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import dev.midroid.app.config.AppPreferences
 import dev.midroid.app.config.InstanceConfig
+import dev.midroid.app.config.ReactionScale
 import dev.midroid.app.config.TextScale
 import dev.midroid.app.diagnostics.RuntimeDiagnostics
 import dev.midroid.app.power.PowerMode
@@ -51,6 +52,7 @@ class MainActivity : ComponentActivity() {
     private var currentInstance: InstanceConfig? = null
     private var currentMode: PowerMode = PowerMode.BALANCED
     private var currentTextScale: TextScale = TextScale.AUTO
+    private var currentReactionScale: ReactionScale = ReactionScale.LARGE
     private var pendingUrl: String? = null
     private var lastKnownUrl: String? = null
     private var visibleToUser = false
@@ -73,6 +75,7 @@ class MainActivity : ComponentActivity() {
         currentInstance = preferences.loadInstance()
         currentMode = preferences.loadPowerMode()
         currentTextScale = preferences.loadTextScale()
+        currentReactionScale = preferences.loadReactionScale()
         RuntimeDiagnostics.logAppStart(this, currentMode, currentInstance?.origin)
 
         val instance = currentInstance
@@ -117,8 +120,8 @@ class MainActivity : ComponentActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         webView?.let { view ->
-            val textZoom = applyTextScale(view, newConfig)
-            uiTuner.applyReactionScale(view, textZoom)
+            applyTextScale(view, newConfig)
+            uiTuner.applyReactionScale(view, currentReactionScale)
         }
     }
 
@@ -175,14 +178,16 @@ class MainActivity : ComponentActivity() {
             initialUrl = currentInstance?.origin.orEmpty(),
             initialMode = currentMode,
             initialTextScale = currentTextScale,
+            initialReactionScale = currentReactionScale,
             onCopyDiagnostics = ::copyDiagnostics,
-        ) { rawUrl, mode, textScale ->
+        ) { rawUrl, mode, textScale, reactionScale ->
             InstanceConfig.parse(rawUrl).fold(
                 onSuccess = { instance ->
                     currentInstance = instance
                     currentMode = mode
                     currentTextScale = textScale
-                    preferences.save(instance, mode, textScale)
+                    currentReactionScale = reactionScale
+                    preferences.save(instance, mode, textScale, reactionScale)
                     showBrowser(instance.origin)
                     null
                 },
@@ -236,7 +241,7 @@ class MainActivity : ComponentActivity() {
                 navigationState.onPageFinished(finishedUrl)
                 RuntimeDiagnostics.logPageReady(this, currentMode, navigationState.currentUrl ?: lastKnownUrl)
                 powerController.onPageReady(this, view, currentMode)
-                uiTuner.applyReactionScale(view, resolveTextZoom())
+                uiTuner.applyReactionScale(view, currentReactionScale)
             },
             onRendererGone = ::handleRendererGone,
         )
