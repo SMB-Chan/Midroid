@@ -1,0 +1,4 @@
+Signed release preflight trigger
+Base main: c6819ef2c80631e1b2730d6cf52eb566a6cbe276
+Requested: 2026-09-07
+Purpose: generate a non-public persistent-key signed APK for physical-device validation.
