@@ -47,7 +47,7 @@ vMAJOR.MINOR.PATCH
 
 Pre-release identifiers are allowed, for example `v0.1.0-rc.1`.
 
-The release workflow derives `versionName` from the tag and uses the GitHub Actions run number as a monotonically increasing Android `versionCode`.
+The release workflow derives `versionName` from the tag and maps the release workflow's monotonically increasing GitHub Actions run number to `versionCode = 1,000,000 + run_number`. It also compares the candidate with the previous GitHub Release's recorded version-code asset and fails closed if ordering cannot be proven.
 
 ## Publish
 
@@ -58,8 +58,8 @@ After the release commit is on `main`, create and push the signed version tag. T
 3. run lint and JVM tests;
 4. build the release APK with the persistent update key;
 5. verify the APK signature;
-6. generate SHA-256 and certificate-report files;
-7. create a GitHub Release and attach all three files.
+6. generate SHA-256, certificate-report and version-code files;
+7. create a GitHub Release and attach all four files.
 
 The workflow intentionally fails instead of publishing an unsigned or debug-signed APK.
 
@@ -70,6 +70,7 @@ From the GitHub Release page:
 - download the APK and checksum;
 - verify the SHA-256 locally;
 - compare the signing certificate SHA-256 fingerprint with the previous stable release;
+- confirm the recorded `versionCode` is greater than the previous stable release;
 - install over the previous stable APK and confirm Android accepts it as an update;
 - verify the app reports the expected version and retains login/application state.
 

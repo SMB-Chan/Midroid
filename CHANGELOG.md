@@ -24,13 +24,18 @@ First public preview target.
 - Lifecycle-aware WebView suspension and renderer recovery.
 - Density-aware text scaling and configurable reaction scaling.
 - Multi-account/profile support where the installed WebView provider supports WebView multi-profile APIs.
-- File picker and authenticated DownloadManager handoff.
+- File picker and DownloadManager handoff with WebView credentials intentionally excluded from redirecting native clients.
 - Native audio fallback for supported Misskey media.
 - Privacy-safe runtime diagnostics and reproducible ADB benchmark tooling.
 - Dedicated persistent release-signing path for update-compatible APKs.
 
 ### Security
 
+- Redirecting native download/audio clients no longer receive WebView Cookie or full-page Referer headers.
+- Delayed native-audio readiness cannot auto-start after the app becomes hidden, and hidden progress polling is stopped.
+- Eco autoplay suppression now observes media added later by Misskey SPA updates.
+- Unsupported saved WebView profiles recover to the default account or a visible recovery UI instead of leaving a blank startup state.
+- Public release `versionCode` generation is monotonic across the former run-number `% 100` boundary and is checked against the previous release metadata.
 - Cleartext traffic is disabled.
 - TLS/SSL errors are not bypassed.
 - WebView remote inspection is restricted to debuggable builds.

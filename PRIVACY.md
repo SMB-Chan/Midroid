@@ -10,7 +10,7 @@ This information remains in the app/WebView storage managed by Android unless th
 
 ## Network traffic
 
-Web content is loaded directly by Android System WebView from the Misskey instance and from resources that page itself requests. Downloads may be handed to Android DownloadManager.
+Web content is loaded directly by Android System WebView from the Misskey instance and from resources that page itself requests. Downloads may be handed to Android DownloadManager. Midroid does not copy WebView cookies or full-page Referer headers into DownloadManager or the native Media3 audio fallback, because those platform clients can follow redirects to another HTTPS host. A resource that requires WebView session cookies may therefore fail in those native fallback paths and should remain in the WebView until a hop-aware authenticated HTTP implementation exists.
 
 Midroid does not operate a Midroid analytics, advertising, tracking or telemetry backend. The project does not include an analytics SDK in the application build.
 
@@ -22,7 +22,7 @@ Midroid can produce local diagnostics for troubleshooting. The diagnostic design
 
 ## Permissions
 
-The app requests Internet access. Camera and microphone WebRTC permissions are not currently granted by the Midroid client.
+The app directly requests Internet access. The merged APK may also contain AndroidX/Media3 library permissions such as network-state access, wake-lock support, and AndroidX's non-exported dynamic-receiver permission. Midroid does not implement a persistent background service or intentionally hold a wake lock as part of its WebView lifecycle policy. Camera and microphone WebRTC permissions are not currently granted by the Midroid client.
 
 ## Changes
 

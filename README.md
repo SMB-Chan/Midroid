@@ -108,7 +108,7 @@ gradle lint testDebugUnitTest assembleDebug assembleRelease
 
 Without the release-signing environment variables, `assembleRelease` is suitable for compile/R8 verification but is **not** an official Midroid update APK.
 
-GitHub Actions always uploads a `Midroid-ci-debug-apk` developer artifact. When the stable signing secrets documented in `docs/UPDATES.md` are configured, ordinary CI also produces an update-compatible release artifact for maintainers.
+GitHub Actions always uploads a `Midroid-ci-debug-apk` developer artifact. Ordinary CI deliberately does **not** produce an update-compatible APK; persistent release signing is reserved for the tag-driven public release workflow.
 
 ## Public release process
 
@@ -120,7 +120,7 @@ A tag matching `vMAJOR.MINOR.PATCH` (pre-release suffixes are also supported) tr
 2. runs lint and JVM tests;
 3. builds the non-debuggable, minified release APK;
 4. verifies the APK signature;
-5. generates SHA-256 and certificate-report assets;
+5. verifies that the Android `versionCode` increases and generates SHA-256, certificate-report and version-code assets;
 6. creates the GitHub Release and attaches those assets.
 
 If stable signing is not configured, the release workflow fails instead of publishing an unsigned or debug-signed package.

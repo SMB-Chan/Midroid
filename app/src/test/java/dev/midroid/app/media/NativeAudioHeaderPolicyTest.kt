@@ -14,16 +14,16 @@ class NativeAudioHeaderPolicyTest {
     )
 
     @Test
-    fun sameOriginKeepsCookieAndReferer() {
+    fun sameOriginStillDropsSensitiveHeadersForRedirectingClient() {
         val safe = NativeAudioHeaderPolicy.sanitize(
             sourceUrl = "https://misskey.example/files/audio.ogg",
             instanceBaseUrl = "https://misskey.example/",
             headers = headers,
         )
 
-        assertEquals("Midroid", safe["User-Agent"])
-        assertEquals("session=secret", safe["Cookie"])
-        assertEquals("https://misskey.example/notes/1", safe["Referer"])
+        assertEquals(mapOf("User-Agent" to "Midroid"), safe)
+        assertFalse(safe.containsKey("Cookie"))
+        assertFalse(safe.containsKey("Referer"))
         assertFalse(safe.containsKey("Authorization"))
     }
 

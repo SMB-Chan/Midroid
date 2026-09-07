@@ -118,12 +118,38 @@ class WebViewPowerController {
                     scroll-behavior: auto !important;
                   }
                 `;
-                document.querySelectorAll('video[autoplay], audio[autoplay]').forEach((media) => {
-                  media.autoplay = false;
-                  try { media.pause(); } catch (_) {}
-                });
-              } else if (style) {
-                style.remove();
+                const neutralizeAutoplay = (root) => {
+                  const candidates = [];
+                  if (root instanceof HTMLMediaElement) candidates.push(root);
+                  if (root && root.querySelectorAll) {
+                    root.querySelectorAll('video[autoplay], audio[autoplay]').forEach((media) => candidates.push(media));
+                  }
+                  candidates.forEach((media) => {
+                    if (!media.hasAttribute('autoplay') && !media.autoplay) return;
+                    media.autoplay = false;
+                    media.removeAttribute('autoplay');
+                    try { media.pause(); } catch (_) {}
+                  });
+                };
+
+                neutralizeAutoplay(document);
+                if (!window.__midroidEcoMediaObserver) {
+                  const observer = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                      mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === Node.ELEMENT_NODE) neutralizeAutoplay(node);
+                      });
+                    });
+                  });
+                  observer.observe(document.documentElement, { childList: true, subtree: true });
+                  window.__midroidEcoMediaObserver = observer;
+                }
+              } else {
+                if (style) style.remove();
+                if (window.__midroidEcoMediaObserver) {
+                  window.__midroidEcoMediaObserver.disconnect();
+                  delete window.__midroidEcoMediaObserver;
+                }
               }
             })();
             """.trimIndent(),

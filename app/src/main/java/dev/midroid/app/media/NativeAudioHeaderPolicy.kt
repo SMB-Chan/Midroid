@@ -9,13 +9,11 @@ object NativeAudioHeaderPolicy {
         instanceBaseUrl: String?,
         headers: Map<String, String>,
     ): Map<String, String> {
-        val sameOrigin = instanceBaseUrl != null && sameOrigin(sourceUrl, instanceBaseUrl)
+        // DefaultHttpDataSource can follow HTTPS redirects to another host and fixed
+        // default request properties may survive that hop. Until Midroid owns redirect
+        // handling per hop, keep only non-sensitive transport metadata.
         return headers
-            .filterKeys { key ->
-                key.equals("User-Agent", ignoreCase = true) ||
-                    (key.equals("Cookie", ignoreCase = true) && sameOrigin) ||
-                    (key.equals("Referer", ignoreCase = true) && sameOrigin)
-            }
+            .filterKeys { key -> key.equals("User-Agent", ignoreCase = true) }
             .filterValues { it.isNotBlank() }
     }
 

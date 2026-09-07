@@ -34,16 +34,7 @@ jobs:
             exit 1
           fi
 
-          # Public releases use a date-based code so the first stable release is
-          # newer than historical CI artifacts whose codes were small run numbers.
-          # YYYYMMDDNN remains below Android's 2,100,000,000 ceiling through 2099.
-          day="$(date -u +%Y%m%d)"
-          sequence=$((10#${GITHUB_RUN_NUMBER} % 100))
-          version_code="$(printf '%s%02d' "$day" "$sequence")"
-          if (( version_code <= 0 || version_code > 2100000000 )); then
-            echo "Generated Android versionCode is outside the supported range: $version_code" >&2
-            exit 1
-          fi
+          version_code="$(tools/release_version_code.sh "$GITHUB_RUN_NUMBER")"
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
@@ -52,11 +43,42 @@ jobs:
 
       - name: Require tagged commit on main
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git fetch --no-tags origin main
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "Release tag must point to a commit already contained in main." >&2
+          status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${GITHUB_SHA}...main" --jq .status)"
+          case "$status" in
+            ahead|identical) ;;
+            *)
+              echo "Release tag must point to a commit already contained in main (compare status: $status)." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Enforce versionCode monotonicity against previous release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          previous_tag="$(gh release list --limit 1 --exclude-drafts --json tagName --jq '.[0].tagName // empty')"
+          if [[ -z "$previous_tag" ]]; then
+            echo "No previous GitHub Release; first public versionCode gate passed."
+            exit 0
+          fi
+
+          tmp="$RUNNER_TEMP/previous-version-code"
+          mkdir -p "$tmp"
+          if ! gh release download "$previous_tag" --pattern 'Midroid-*.version-code.txt' --dir "$tmp"; then
+            echo "Previous release $previous_tag lacks a versionCode asset; refusing to guess update ordering." >&2
+            exit 1
+          fi
+          previous_file="$(find "$tmp" -maxdepth 1 -name 'Midroid-*.version-code.txt' -type f | head -n1)"
+          previous="$(tr -d '[:space:]' < "$previous_file")"
+          candidate="${{ steps.version.outputs.version_code }}"
+          if [[ ! "$previous" =~ ^[0-9]+$ ]] || (( candidate <= previous )); then
+            echo "Candidate versionCode $candidate is not greater than previous $previous." >&2
             exit 1
           fi
 
@@ -98,6 +120,9 @@ jobs:
         run: |
           bash -n tools/benchmark_android.sh
           bash -n tools/bootstrap_update_signing.sh
+          bash -n tools/release_version_code.sh
+          bash -n tools/test_release_version_code.sh
+          bash tools/test_release_version_code.sh
 
       - name: Verify and build signed release
         env:
@@ -132,6 +157,8 @@ jobs:
           cp "$source_apk" "$apk"
           sha="$out/Midroid-${version}.apk.sha256"
           cert="$out/Midroid-${version}.signing.txt"
+          version_code_file="$out/Midroid-${version}.version-code.txt"
+          printf '%s\n' "${{ steps.version.outputs.version_code }}" > "$version_code_file"
 
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" | tee "$cert"
           actual_cert="$(awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print tolower($2); exit}' "$cert")"
@@ -150,6 +177,7 @@ jobs:
           echo "apk=$apk" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "cert=$cert" >> "$GITHUB_OUTPUT"
+          echo "version_code=$version_code_file" >> "$GITHUB_OUTPUT"
 
       - name: Upload immutable release build artifact
         uses: actions/upload-artifact@v7
@@ -159,6 +187,7 @@ jobs:
             ${{ steps.assets.outputs.apk }}
             ${{ steps.assets.outputs.sha }}
             ${{ steps.assets.outputs.cert }}
+            ${{ steps.assets.outputs.version_code }}
           if-no-files-found: error
           retention-days: 90
 
@@ -177,4 +206,5 @@ jobs:
             "${{ steps.assets.outputs.apk }}" \
             "${{ steps.assets.outputs.sha }}" \
             "${{ steps.assets.outputs.cert }}" \
+            "${{ steps.assets.outputs.version_code }}" \
             "${flags[@]}"

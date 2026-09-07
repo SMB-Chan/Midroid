@@ -44,6 +44,9 @@ jobs:
         run: |
           bash -n tools/benchmark_android.sh
           bash -n tools/bootstrap_update_signing.sh
+          bash -n tools/release_version_code.sh
+          bash -n tools/test_release_version_code.sh
+          bash tools/test_release_version_code.sh
 
       - name: Verify debug and release builds
         run: gradle --stacktrace lint testDebugUnitTest assembleDebug assembleRelease

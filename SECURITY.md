@@ -15,7 +15,7 @@ After this repository becomes public, use GitHub's private vulnerability-reporti
 - impact assessment;
 - logs or screenshots with account names, tokens, cookies, note IDs and private URLs removed.
 
-If private vulnerability reporting is temporarily unavailable, contact the repository owner through a private GitHub channel rather than publishing exploit details.
+If GitHub's private vulnerability-reporting button is unavailable, do not publish exploit details. Open a public issue containing only the words **"Security contact requested"** and no reproduction, affected URL, logs, screenshots or technical details; the maintainer can then arrange a private disclosure channel before any sensitive information is exchanged.
 
 ## Supported versions
 
