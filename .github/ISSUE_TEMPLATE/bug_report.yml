@@ -1,0 +1,75 @@
+name: Bug report
+description: Report a reproducible Midroid problem
+title: "[Bug] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a Midroid problem. Do not include cookies, tokens, private note URLs or undisclosed security vulnerabilities. Use SECURITY.md for security reports.
+  - type: input
+    id: version
+    attributes:
+      label: Midroid version
+      description: Release version or commit SHA.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      placeholder: motorola edge 40 neo, Android 15
+    validations:
+      required: true
+  - type: input
+    id: webview
+    attributes:
+      label: Android System WebView provider/version
+      description: Copy from Midroid diagnostics if available.
+    validations:
+      required: true
+  - type: input
+    id: misskey
+    attributes:
+      label: Misskey version / instance type
+      description: Avoid identifying a private instance if that information is sensitive.
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics / logs
+      description: Remove account names, cookies, tokens, note IDs, query strings and private URLs before posting.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I reproduced this on the version listed above.
+          required: true
+        - label: I removed private account/session information from this report.
+          required: true
+        - label: This is not an undisclosed security vulnerability.
+          required: true
