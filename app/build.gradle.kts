@@ -94,5 +94,6 @@ tasks.named("preBuild").configure {
 dependencies {
     implementation("androidx.activity:activity:1.13.0")
     implementation("androidx.webkit:webkit:1.17.0")
+    implementation("androidx.media3:media3-exoplayer:1.11.0")
     testImplementation("junit:junit:4.13.2")
 }
