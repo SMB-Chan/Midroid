@@ -7,6 +7,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import dev.midroid.app.config.InstanceConfig
 import dev.midroid.app.media.NativeAudioRequest
+import java.util.Locale
 
 class MidroidWebViewClient(
     private val instance: InstanceConfig,
@@ -21,11 +22,14 @@ class MidroidWebViewClient(
 
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
         val uri = request.url
-        val scheme = uri.scheme?.lowercase()
+        val scheme = uri.scheme?.lowercase(Locale.ROOT)
 
         if (scheme == NativeAudioRequest.SCHEME) {
-            NativeAudioRequest.parse(uri.toString())?.let(onNativeAudioRequested)
-            // Always consume the private Midroid scheme, including malformed requests.
+            if (request.isForMainFrame) {
+                NativeAudioRequest.parse(uri.toString())?.let(onNativeAudioRequested)
+            }
+            // Always consume the private Midroid scheme, including malformed requests and
+            // sub-frame attempts. Native UI may only be triggered by the main frame.
             return true
         }
 
