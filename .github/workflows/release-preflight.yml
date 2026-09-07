@@ -34,7 +34,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version_code="$(tools/release_version_code.sh "$GITHUB_RUN_NUMBER")"
+          if [[ ! "$GITHUB_RUN_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "Invalid workflow run number: $GITHUB_RUN_NUMBER" >&2
+            exit 1
+          fi
+          # Keep signed validation APKs below the public-release range (>= 1,000,001)
+          # so the first tagged public build is always an Android upgrade from preflight.
+          version_code=$((500000 + 10#$GITHUB_RUN_NUMBER))
+          if (( version_code <= 500000 || version_code >= 1000000 )); then
+            echo "Preflight versionCode is outside its reserved range: $version_code" >&2
+            exit 1
+          fi
           version_name="0.1.0-preflight.${GITHUB_RUN_NUMBER}"
           echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
           echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
