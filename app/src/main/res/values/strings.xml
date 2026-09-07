@@ -41,13 +41,17 @@
     <string name="invalid_instance_url">Invalid instance URL.</string>
     <string name="native_audio_title">Android audio player</string>
     <string name="native_audio_preparing">Preparing audio…</string>
+    <string name="native_audio_buffering">Buffering audio…</string>
     <string name="native_audio_ready">Ready</string>
     <string name="native_audio_playing">Playing with Android native audio</string>
     <string name="native_audio_paused">Paused</string>
     <string name="native_audio_finished">Playback finished</string>
     <string name="native_audio_play">Play</string>
     <string name="native_audio_pause">Pause</string>
+    <string name="native_audio_retry">Retry</string>
+    <string name="native_audio_timeout">Audio preparation timed out. Check the connection and retry.</string>
     <string name="native_audio_failed">Android could not play this audio file.</string>
+    <string name="native_audio_failed_detail">Android audio failed (%1$s). Tap Retry to try again.</string>
     <string name="native_audio_focus_failed">Audio output is temporarily unavailable.</string>
     <string name="native_audio_invalid_url">Blocked an invalid native-audio URL.</string>
     <string name="native_audio_position">%1$s / %2$s</string>
