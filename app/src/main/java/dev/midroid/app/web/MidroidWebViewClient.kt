@@ -24,8 +24,8 @@ class MidroidWebViewClient(
         val uri = request.url
         val scheme = uri.scheme?.lowercase(Locale.ROOT)
 
-        if (scheme == NativeAudioRequest.SCHEME) {
-            if (request.isForMainFrame) {
+        if (NativeAudioNavigationPolicy.isNativeAudioScheme(scheme)) {
+            if (NativeAudioNavigationPolicy.shouldDispatch(scheme, request.isForMainFrame)) {
                 NativeAudioRequest.parse(uri.toString())?.let(onNativeAudioRequested)
             }
             // Always consume the private Midroid scheme, including malformed requests and
