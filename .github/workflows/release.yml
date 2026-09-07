@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*.*.*'
+    branches:
+      - release/publish
 
 permissions:
   contents: write
@@ -22,39 +24,70 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate release tag and version code
-        id: version
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          version="${tag#v}"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Unsupported release tag: $tag" >&2
-            exit 1
-          fi
-
-          version_code="$(tools/release_version_code.sh "$GITHUB_RUN_NUMBER")"
-
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
-          echo "MIDROID_VERSION_NAME=$version" >> "$GITHUB_ENV"
-          echo "MIDROID_VERSION_CODE=$version_code" >> "$GITHUB_ENV"
-
-      - name: Require tagged commit on main
+      - name: Resolve approved release source
+        id: source
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${GITHUB_SHA}...main" --jq .status)"
+
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            tag="$GITHUB_REF_NAME"
+            release_sha="$GITHUB_SHA"
+            version="${tag#v}"
+          elif [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF_NAME" == "release/publish" ]]; then
+            compare="repos/${GITHUB_REPOSITORY}/compare/main...${GITHUB_SHA}"
+            status="$(gh api "$compare" --jq .status)"
+            if [[ "$status" != "ahead" ]]; then
+              echo "release/publish must be exactly ahead of current main (status: $status)." >&2
+              exit 1
+            fi
+
+            mapfile -t changed < <(gh api "$compare" --jq '.files[].filename')
+            if (( ${#changed[@]} != 1 )) || [[ "${changed[0]}" != "docs/audits/release-publish-trigger.txt" ]]; then
+              printf 'Refusing release: release/publish differs from main at:\n' >&2
+              printf '  %s\n' "${changed[@]}" >&2
+              exit 1
+            fi
+
+            trigger="docs/audits/release-publish-trigger.txt"
+            version="$(sed -n 's/^version=//p' "$trigger" | head -n1 | tr -d '[:space:]')"
+            release_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+            tag="v${version}"
+
+            if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1; then
+              echo "Release tag already exists: $tag" >&2
+              exit 1
+            fi
+          else
+            echo "Unexpected release trigger: event=$GITHUB_EVENT_NAME ref=$GITHUB_REF_NAME type=$GITHUB_REF_TYPE" >&2
+            exit 1
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Unsupported release version: $version" >&2
+            exit 1
+          fi
+
+          status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${release_sha}...main" --jq .status)"
           case "$status" in
             ahead|identical) ;;
             *)
-              echo "Release tag must point to a commit already contained in main (compare status: $status)." >&2
+              echo "Release source must be contained in main (compare status: $status)." >&2
               exit 1
               ;;
           esac
+
+          git checkout --detach "$release_sha"
+
+          version_code="$(tools/release_version_code.sh "$GITHUB_RUN_NUMBER")"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+          echo "MIDROID_VERSION_NAME=$version" >> "$GITHUB_ENV"
+          echo "MIDROID_VERSION_CODE=$version_code" >> "$GITHUB_ENV"
 
       - name: Enforce versionCode monotonicity against previous release
         shell: bash
@@ -76,7 +109,7 @@ jobs:
           fi
           previous_file="$(find "$tmp" -maxdepth 1 -name 'Midroid-*.version-code.txt' -type f | head -n1)"
           previous="$(tr -d '[:space:]' < "$previous_file")"
-          candidate="${{ steps.version.outputs.version_code }}"
+          candidate="${{ steps.source.outputs.version_code }}"
           if [[ ! "$previous" =~ ^[0-9]+$ ]] || (( candidate <= previous )); then
             echo "Candidate versionCode $candidate is not greater than previous $previous." >&2
             exit 1
@@ -144,7 +177,7 @@ jobs:
           EXPECTED_RELEASE_CERT_SHA256: d6540699dafc1c37764948e1efed476580162c0add4b1a2b18cd6854cc5206c6
         run: |
           set -euo pipefail
-          version="${{ steps.version.outputs.version }}"
+          version="${{ steps.source.outputs.version }}"
           source_apk="app/build/outputs/apk/release/app-release.apk"
           if [[ ! -f "$source_apk" ]]; then
             echo "Signed release APK was not produced: $source_apk" >&2
@@ -158,7 +191,7 @@ jobs:
           sha="$out/Midroid-${version}.apk.sha256"
           cert="$out/Midroid-${version}.signing.txt"
           version_code_file="$out/Midroid-${version}.version-code.txt"
-          printf '%s\n' "${{ steps.version.outputs.version_code }}" > "$version_code_file"
+          printf '%s\n' "${{ steps.source.outputs.version_code }}" > "$version_code_file"
 
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" | tee "$cert"
           actual_cert="$(awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print tolower($2); exit}' "$cert")"
@@ -182,7 +215,7 @@ jobs:
       - name: Upload immutable release build artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Midroid-${{ steps.version.outputs.version }}-release-assets
+          name: Midroid-${{ steps.source.outputs.version }}-release-assets
           path: |
             ${{ steps.assets.outputs.apk }}
             ${{ steps.assets.outputs.sha }}
@@ -197,14 +230,28 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          version="${{ steps.version.outputs.version }}"
-          flags=(--verify-tag --generate-notes --title "Midroid ${version}")
+          version="${{ steps.source.outputs.version }}"
+          tag="${{ steps.source.outputs.tag }}"
+          release_sha="${{ steps.source.outputs.release_sha }}"
+          flags=(--generate-notes --title "Midroid ${version}")
           if [[ "$version" == *-* ]]; then
             flags+=(--prerelease)
           fi
-          gh release create "$GITHUB_REF_NAME" \
-            "${{ steps.assets.outputs.apk }}" \
-            "${{ steps.assets.outputs.sha }}" \
-            "${{ steps.assets.outputs.cert }}" \
-            "${{ steps.assets.outputs.version_code }}" \
-            "${flags[@]}"
+
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            flags+=(--verify-tag)
+            gh release create "$tag" \
+              "${{ steps.assets.outputs.apk }}" \
+              "${{ steps.assets.outputs.sha }}" \
+              "${{ steps.assets.outputs.cert }}" \
+              "${{ steps.assets.outputs.version_code }}" \
+              "${flags[@]}"
+          else
+            gh release create "$tag" \
+              --target "$release_sha" \
+              "${{ steps.assets.outputs.apk }}" \
+              "${{ steps.assets.outputs.sha }}" \
+              "${{ steps.assets.outputs.cert }}" \
+              "${{ steps.assets.outputs.version_code }}" \
+              "${flags[@]}"
+          fi

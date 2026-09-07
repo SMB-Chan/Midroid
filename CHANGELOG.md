@@ -6,14 +6,11 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 ## [Unreleased]
 
-### Added
+No unreleased user-facing changes are currently recorded.
 
-- Public GitHub release pipeline for signed APKs, SHA-256 checksums and signing-certificate reports.
-- Public security, privacy, contribution and release documentation.
+## [0.1.0] - 2026-09-07
 
-## [0.1.0] - Unreleased
-
-First public preview target.
+First public preview release.
 
 ### Added
 
@@ -28,6 +25,8 @@ First public preview target.
 - Native audio fallback for supported Misskey media.
 - Privacy-safe runtime diagnostics and reproducible ADB benchmark tooling.
 - Dedicated persistent release-signing path for update-compatible APKs.
+- Public GitHub release pipeline for signed APKs, SHA-256 checksums and signing-certificate reports.
+- Public security, privacy, contribution and release documentation.
 
 ### Security
 
