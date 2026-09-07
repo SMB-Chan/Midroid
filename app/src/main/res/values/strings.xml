@@ -39,4 +39,17 @@
     <string name="copy_diagnostics">Copy diagnostics</string>
     <string name="privacy_note">Midroid stores the selected instance and login cookies locally. HTTPS is required. External links open in your default browser. Diagnostic copies contain only the instance origin, device/WebView version, power mode and Android power-saver state.</string>
     <string name="invalid_instance_url">Invalid instance URL.</string>
+    <string name="native_audio_title">Android audio player</string>
+    <string name="native_audio_preparing">Preparing audio…</string>
+    <string name="native_audio_ready">Ready</string>
+    <string name="native_audio_playing">Playing with Android native audio</string>
+    <string name="native_audio_paused">Paused</string>
+    <string name="native_audio_finished">Playback finished</string>
+    <string name="native_audio_play">Play</string>
+    <string name="native_audio_pause">Pause</string>
+    <string name="native_audio_failed">Android could not play this audio file.</string>
+    <string name="native_audio_focus_failed">Audio output is temporarily unavailable.</string>
+    <string name="native_audio_invalid_url">Blocked an invalid native-audio URL.</string>
+    <string name="native_audio_position">%1$s / %2$s</string>
+    <string name="close">Close</string>
 </resources>
