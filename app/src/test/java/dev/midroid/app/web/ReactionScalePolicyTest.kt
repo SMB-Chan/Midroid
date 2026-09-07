@@ -8,7 +8,7 @@ class ReactionScalePolicyTest {
     @Test
     fun standardUsesComfortableTouchTarget() {
         assertEquals(
-            ReactionScaleMetrics(52, 200, 8),
+            ReactionScaleMetrics(52, 200, 8, 48, 32),
             ReactionScalePolicy.forScale(ReactionScale.STANDARD),
         )
     }
@@ -16,13 +16,25 @@ class ReactionScalePolicyTest {
     @Test
     fun largeAndExtraLargeAreClearlySeparated() {
         assertEquals(
-            ReactionScaleMetrics(60, 230, 10),
+            ReactionScaleMetrics(60, 230, 10, 56, 40),
             ReactionScalePolicy.forScale(ReactionScale.LARGE),
         )
         assertEquals(
-            ReactionScaleMetrics(68, 260, 12),
+            ReactionScaleMetrics(68, 260, 12, 64, 48),
             ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE),
         )
+    }
+
+    @Test
+    fun reactionDeckCellsGrowWithDisplayMode() {
+        val standard = ReactionScalePolicy.forScale(ReactionScale.STANDARD)
+        val large = ReactionScalePolicy.forScale(ReactionScale.LARGE)
+        val extraLarge = ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE)
+
+        assertEquals(true, standard.deckCellCssPx < large.deckCellCssPx)
+        assertEquals(true, large.deckCellCssPx < extraLarge.deckCellCssPx)
+        assertEquals(true, standard.deckEmojiCssPx < large.deckEmojiCssPx)
+        assertEquals(true, large.deckEmojiCssPx < extraLarge.deckEmojiCssPx)
     }
 
     @Test
