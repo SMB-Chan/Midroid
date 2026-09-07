@@ -10,6 +10,9 @@ data class ReactionScaleMetrics(
     val deckCellCssPx: Int,
     val deckEmojiCssPx: Int,
     val notificationEmojiCssPx: Int,
+    val notificationAvatarCssPx: Int,
+    val notificationGroupItemCssPx: Int,
+    val notificationFontPercent: Int,
 )
 
 object ReactionScalePolicy {
@@ -23,6 +26,9 @@ object ReactionScalePolicy {
                 deckCellCssPx = 48,
                 deckEmojiCssPx = 32,
                 notificationEmojiCssPx = 24,
+                notificationAvatarCssPx = 44,
+                notificationGroupItemCssPx = 44,
+                notificationFontPercent = 100,
             )
             ReactionScale.LARGE -> ReactionScaleMetrics(
                 buttonHeightCssPx = 60,
@@ -32,6 +38,9 @@ object ReactionScalePolicy {
                 deckCellCssPx = 56,
                 deckEmojiCssPx = 40,
                 notificationEmojiCssPx = 30,
+                notificationAvatarCssPx = 50,
+                notificationGroupItemCssPx = 50,
+                notificationFontPercent = 108,
             )
             ReactionScale.EXTRA_LARGE -> ReactionScaleMetrics(
                 buttonHeightCssPx = 68,
@@ -41,6 +50,9 @@ object ReactionScalePolicy {
                 deckCellCssPx = 64,
                 deckEmojiCssPx = 48,
                 notificationEmojiCssPx = 36,
+                notificationAvatarCssPx = 58,
+                notificationGroupItemCssPx = 58,
+                notificationFontPercent = 116,
             )
         }
     }

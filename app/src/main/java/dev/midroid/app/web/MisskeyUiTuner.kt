@@ -6,6 +6,9 @@ import dev.midroid.app.config.ReactionScale
 class MisskeyUiTuner {
     fun applyReactionScale(webView: WebView, scale: ReactionScale) {
         val metrics = ReactionScalePolicy.forScale(scale)
+        // Structural selector for a notification row. Interpolated by Kotlin (contains no
+        // `$`), so JS below can reference it via `${'$'}{notifRoot}` without a JS variable.
+        val notifRoot = "div:has(> div > header:has(time))"
         webView.evaluateJavascript(
             """
             (() => {
@@ -87,6 +90,34 @@ class MisskeyUiTuner {
                 }
               `;
 
+              // Notification list readability. Misskey renders each notification row
+              // with a hashed CSS-module class, so key off the stable structure instead:
+              // a row (.root) contains a <div> (.tail) whose child <header> holds a
+              // <time> (MkTime). On phones the row shrinks to font-size: 0.85em with a
+              // 42px avatar and 38px grouped-reaction thumbnails, none of which react to
+              // WebView textZoom. These rules restore/enlarge them and fail closed when
+              // :has() is unavailable or the structure changes. notifRoot is injected by
+              // Kotlin, so it is a plain string literal here rather than a JS variable.
+              const notificationReadability = supportsHas ? `
+                ${notifRoot} {
+                  font-size: ${metrics.notificationFontPercent}% !important;
+                  align-items: flex-start !important;
+                }
+
+                ${notifRoot} > :first-child {
+                  width: ${metrics.notificationAvatarCssPx}px !important;
+                  min-width: ${metrics.notificationAvatarCssPx}px !important;
+                  height: ${metrics.notificationAvatarCssPx}px !important;
+                  min-height: ${metrics.notificationAvatarCssPx}px !important;
+                }
+
+                ${notifRoot} > div:last-child
+                  div:has(> div > [style*="width: 100%"][style*="object-fit: contain"]) {
+                  width: ${metrics.notificationGroupItemCssPx}px !important;
+                  height: ${metrics.notificationGroupItemCssPx}px !important;
+                }
+              ` : '';
+
               const root = pickerRoot;
               const gridRule = supportsHas
                 ? root + ` :has(> button._button.item) {
@@ -135,7 +166,7 @@ class MisskeyUiTuner {
                   object-fit: contain !important;
                 }`;
 
-              style.textContent = hasRules + notificationFallback + pickerRules;
+              style.textContent = hasRules + notificationFallback + notificationReadability + pickerRules;
             })();
             """.trimIndent(),
             null,
