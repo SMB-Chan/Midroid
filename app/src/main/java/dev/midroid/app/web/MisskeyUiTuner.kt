@@ -30,7 +30,6 @@ class MisskeyUiTuner {
                 : '.omfetrab';
 
               const hasRules = supportsHas ? `
-                /* Reactions already attached to notes. */
                 button._button:has(> [style*="pointer-events: none"] + span) {
                   height: ${metrics.buttonHeightCssPx}px !important;
                   min-height: ${metrics.buttonHeightCssPx}px !important;
@@ -94,8 +93,23 @@ class MisskeyUiTuner {
 
               let pickerRules = '';
               if (pickerRoot) {
-                pickerRules = `
-                  ${pickerRoot} {
+                const root = pickerRoot;
+                const gridRule = supportsHas
+                  ? root + ` :has(> button._button.item) {
+                      display: grid !important;
+                      grid-template-columns: repeat(auto-fill, minmax(${metrics.deckCellCssPx}px, ${metrics.deckCellCssPx}px)) !important;
+                      justify-content: space-around !important;
+                      justify-items: center !important;
+                      align-items: center !important;
+                      gap: 4px !important;
+                      width: 100% !important;
+                      min-width: 0 !important;
+                      max-width: 100% !important;
+                      overflow-x: hidden !important;
+                    }`
+                  : '';
+
+                pickerRules = root + ` {
                     box-sizing: border-box !important;
                     width: min(100%, calc(100dvw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))) !important;
                     max-width: calc(100dvw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
@@ -103,27 +117,13 @@ class MisskeyUiTuner {
                     margin-right: auto !important;
                     overflow-x: hidden !important;
                     overscroll-behavior-x: none !important;
-                  }
-
-                  ${pickerRoot} * {
+                  }\n` +
+                  root + ` * {
                     box-sizing: border-box !important;
                     max-width: 100%;
-                  }
-
-                  ${supportsHas ? `${pickerRoot} :has(> button._button.item) {
-                    display: grid !important;
-                    grid-template-columns: repeat(auto-fill, minmax(${metrics.deckCellCssPx}px, ${metrics.deckCellCssPx}px)) !important;
-                    justify-content: space-around !important;
-                    justify-items: center !important;
-                    align-items: center !important;
-                    gap: 4px !important;
-                    width: 100% !important;
-                    min-width: 0 !important;
-                    max-width: 100% !important;
-                    overflow-x: hidden !important;
-                  }` : ''}
-
-                  ${pickerRoot} button._button.item {
+                  }\n` +
+                  gridRule + '\n' +
+                  root + ` button._button.item {
                     width: ${metrics.deckCellCssPx}px !important;
                     min-width: 0 !important;
                     max-width: ${metrics.deckCellCssPx}px !important;
@@ -131,24 +131,15 @@ class MisskeyUiTuner {
                     min-height: ${metrics.deckCellCssPx}px !important;
                     padding: 4px !important;
                     box-sizing: border-box !important;
-                  }
-
-                  ${pickerRoot} button._button.item > .emoji {
+                  }\n` +
+                  root + ` button._button.item > .emoji {
                     width: ${metrics.deckEmojiCssPx}px !important;
                     max-width: ${metrics.deckEmojiCssPx}px !important;
                     height: ${metrics.deckEmojiCssPx}px !important;
                     max-height: ${metrics.deckEmojiCssPx}px !important;
                     font-size: ${metrics.deckEmojiCssPx}px !important;
                     object-fit: contain !important;
-                  }
-
-                  @media (max-width: 420px) {
-                    ${pickerRoot} {
-                      width: calc(100dvw - 12px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
-                      max-width: calc(100dvw - 12px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
-                    }
-                  }
-                `;
+                  }`;
               }
 
               style.textContent = hasRules + notificationFallback + pickerRules;
