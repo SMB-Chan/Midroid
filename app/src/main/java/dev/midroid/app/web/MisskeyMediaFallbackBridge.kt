@@ -199,9 +199,55 @@ class MisskeyMediaFallbackBridge {
         webView.evaluateJavascript(
             """
             (() => {
-              const bridge = window['__midroid_native_audio_fallback_v2'];
-              if (!bridge || typeof bridge.openNative !== 'function') return false;
-              return bridge.openNative();
+              const existing = window['__midroid_native_audio_fallback_v2'];
+              if (existing && typeof existing.openNative === 'function') {
+                return existing.openNative();
+              }
+
+              const normalizeHttps = (raw) => {
+                if (!raw) return null;
+                try {
+                  const resolved = new URL(raw, document.baseURI);
+                  return resolved.protocol === 'https:' ? resolved.href : null;
+                } catch (_) {
+                  return null;
+                }
+              };
+
+              const sourceFor = (audio) => {
+                const values = [audio.currentSrc, audio.src, audio.getAttribute('src')];
+                for (const source of audio.querySelectorAll('source')) {
+                  values.push(source.src, source.getAttribute('src'));
+                }
+                for (const value of values) {
+                  const normalized = normalizeHttps(value);
+                  if (normalized) return normalized;
+                }
+                return null;
+              };
+
+              const candidates = Array.from(document.querySelectorAll('audio'))
+                .filter((audio) => sourceFor(audio));
+              const audio = candidates.find((candidate) => !candidate.paused && !candidate.ended) ||
+                candidates.filter((candidate) => candidate.readyState > HTMLMediaElement.HAVE_NOTHING).at(-1) ||
+                candidates.at(-1) ||
+                null;
+              if (!audio) return false;
+
+              const source = sourceFor(audio);
+              if (!source) return false;
+
+              const target = new URL('midroid-audio://play');
+              target.searchParams.set('url', source);
+              target.searchParams.set(
+                'title',
+                audio.getAttribute('aria-label') ||
+                  audio.getAttribute('title') ||
+                  document.title ||
+                  'Misskey audio',
+              );
+              window.location.href = target.toString();
+              return true;
             })();
             """.trimIndent(),
         ) { rawResult ->
