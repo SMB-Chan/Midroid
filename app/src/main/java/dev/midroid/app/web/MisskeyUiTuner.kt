@@ -6,6 +6,9 @@ import dev.midroid.app.config.ReactionScale
 class MisskeyUiTuner {
     fun applyReactionScale(webView: WebView, scale: ReactionScale) {
         val metrics = ReactionScalePolicy.forScale(scale)
+        val groupedReactionCssPx = (metrics.notificationReactionCssPx - 14).coerceAtLeast(28)
+        val groupedReactionMaxWidthCssPx = groupedReactionCssPx * 3
+
         webView.evaluateJavascript(
             """
             (() => {
@@ -53,7 +56,9 @@ class MisskeyUiTuner {
                   root.dataset.midroidNotification = '1';
                   head.dataset.midroidNotificationHead = '1';
                   tail.dataset.midroidNotificationTail = '1';
+                  header.dataset.midroidNotificationHeader = '1';
                   subIcon.dataset.midroidNotificationSubicon = '1';
+                  time.dataset.midroidNotificationTime = '1';
 
                   const icon = head.firstElementChild;
                   if (icon instanceof HTMLElement) {
@@ -76,6 +81,7 @@ class MisskeyUiTuner {
                     delete subIcon.dataset.midroidNotificationReaction;
                   }
 
+                  const groupedLists = new Map();
                   tail.querySelectorAll('div').forEach((item) => {
                     if (!(item instanceof HTMLElement) || item.children.length !== 2) return;
                     const avatar = item.children.item(0);
@@ -94,6 +100,15 @@ class MisskeyUiTuner {
                     item.dataset.midroidGroupedReactionItem = '1';
                     avatar.dataset.midroidGroupedReactionAvatar = '1';
                     reaction.dataset.midroidGroupedReaction = '1';
+
+                    const list = item.parentElement;
+                    if (list instanceof HTMLElement) {
+                      groupedLists.set(list, (groupedLists.get(list) ?? 0) + 1);
+                    }
+                  });
+
+                  groupedLists.forEach((count, list) => {
+                    if (count > 0) list.dataset.midroidGroupedReactionList = '1';
                   });
                 });
               };
@@ -155,7 +170,7 @@ class MisskeyUiTuner {
                 [data-midroid-notification="1"] {
                   font-size: ${metrics.notificationFontPercent}% !important;
                   align-items: flex-start !important;
-                  overflow: visible !important;
+                  overflow: hidden !important;
                 }
 
                 [data-midroid-notification-head="1"] {
@@ -177,6 +192,34 @@ class MisskeyUiTuner {
                   max-height: 100% !important;
                 }
 
+                [data-midroid-notification-tail="1"] {
+                  min-width: 0 !important;
+                  max-width: 100% !important;
+                  overflow: hidden !important;
+                }
+
+                [data-midroid-notification-header="1"] {
+                  display: flex !important;
+                  align-items: baseline !important;
+                  gap: 8px !important;
+                  min-width: 0 !important;
+                  max-width: 100% !important;
+                  overflow: hidden !important;
+                }
+
+                [data-midroid-notification-header="1"] > :first-child:not([data-midroid-notification-time="1"]) {
+                  min-width: 0 !important;
+                  overflow: hidden !important;
+                  text-overflow: ellipsis !important;
+                  white-space: nowrap !important;
+                }
+
+                [data-midroid-notification-time="1"] {
+                  flex: 0 0 auto !important;
+                  margin-left: auto !important;
+                  white-space: nowrap !important;
+                }
+
                 [data-midroid-notification-group-glyph="1"] {
                   font-size: ${metrics.notificationGroupSymbolCssPx}px !important;
                   line-height: 1 !important;
@@ -190,8 +233,8 @@ class MisskeyUiTuner {
                   min-height: ${metrics.notificationStatusIconCssPx}px !important;
                   max-height: ${metrics.notificationStatusIconCssPx}px !important;
                   line-height: ${metrics.notificationStatusIconCssPx}px !important;
-                  right: -4px !important;
-                  bottom: -4px !important;
+                  right: -3px !important;
+                  bottom: -3px !important;
                   font-size: ${metrics.notificationStatusIconCssPx / 2}px !important;
                   box-shadow: 0 0 0 2px var(--MI_THEME-panel) !important;
                 }
@@ -206,7 +249,7 @@ class MisskeyUiTuner {
                   height: auto !important;
                   min-height: ${metrics.notificationAvatarCssPx + metrics.notificationReactionGapCssPx + metrics.notificationReactionCssPx}px !important;
                   max-height: none !important;
-                  margin-right: 10px !important;
+                  margin-right: 8px !important;
                   overflow: visible !important;
                 }
 
@@ -240,7 +283,7 @@ class MisskeyUiTuner {
                   border-radius: 0 !important;
                   background: transparent !important;
                   box-shadow: none !important;
-                  overflow: visible !important;
+                  overflow: hidden !important;
                 }
 
                 [data-midroid-notification-reaction-graphic="1"] {
@@ -256,22 +299,33 @@ class MisskeyUiTuner {
                   object-fit: contain !important;
                 }
 
+                [data-midroid-grouped-reaction-list="1"] {
+                  display: flex !important;
+                  flex-wrap: wrap !important;
+                  align-items: center !important;
+                  gap: 8px 12px !important;
+                  width: 100% !important;
+                  max-width: 100% !important;
+                  margin-top: 10px !important;
+                  overflow: hidden !important;
+                }
+
                 [data-midroid-grouped-reaction-item="1"] {
                   display: inline-flex !important;
-                  flex-direction: column !important;
+                  flex: 0 1 auto !important;
+                  flex-direction: row !important;
                   align-items: center !important;
                   justify-content: flex-start !important;
-                  vertical-align: top !important;
+                  gap: 6px !important;
                   position: relative !important;
-                  width: max-content !important;
-                  min-width: ${metrics.notificationGroupAvatarCssPx}px !important;
-                  max-width: ${metrics.notificationReactionMaxWidthCssPx}px !important;
-                  height: auto !important;
-                  min-height: ${metrics.notificationGroupAvatarCssPx + metrics.notificationReactionGapCssPx + metrics.notificationReactionCssPx}px !important;
-                  max-height: none !important;
-                  margin-top: 10px !important;
-                  margin-right: 12px !important;
-                  overflow: visible !important;
+                  width: auto !important;
+                  min-width: 0 !important;
+                  max-width: min(100%, ${metrics.notificationGroupAvatarCssPx + 6 + groupedReactionMaxWidthCssPx}px) !important;
+                  height: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  min-height: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  max-height: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  margin: 0 !important;
+                  overflow: hidden !important;
                 }
 
                 [data-midroid-grouped-reaction-avatar="1"] {
@@ -290,30 +344,30 @@ class MisskeyUiTuner {
                   display: inline-flex !important;
                   flex: 0 1 auto !important;
                   align-items: center !important;
-                  justify-content: center !important;
+                  justify-content: flex-start !important;
                   width: auto !important;
                   min-width: 0 !important;
-                  max-width: ${metrics.notificationReactionMaxWidthCssPx}px !important;
-                  height: ${metrics.notificationReactionCssPx}px !important;
-                  min-height: ${metrics.notificationReactionCssPx}px !important;
-                  max-height: ${metrics.notificationReactionCssPx}px !important;
-                  margin: ${metrics.notificationReactionGapCssPx}px 0 0 0 !important;
+                  max-width: ${groupedReactionMaxWidthCssPx}px !important;
+                  height: ${groupedReactionCssPx}px !important;
+                  min-height: ${groupedReactionCssPx}px !important;
+                  max-height: ${groupedReactionCssPx}px !important;
+                  margin: 0 !important;
                   padding: 0 !important;
                   border-radius: 0 !important;
                   background: transparent !important;
                   box-shadow: none !important;
-                  overflow: visible !important;
+                  overflow: hidden !important;
                 }
 
                 [data-midroid-grouped-reaction-graphic="1"] {
                   display: block !important;
                   width: auto !important;
                   min-width: 0 !important;
-                  max-width: ${metrics.notificationReactionMaxWidthCssPx}px !important;
-                  height: ${metrics.notificationReactionCssPx}px !important;
-                  min-height: ${metrics.notificationReactionCssPx}px !important;
-                  max-height: ${metrics.notificationReactionCssPx}px !important;
-                  font-size: ${metrics.notificationReactionCssPx}px !important;
+                  max-width: ${groupedReactionMaxWidthCssPx}px !important;
+                  height: ${groupedReactionCssPx}px !important;
+                  min-height: ${groupedReactionCssPx}px !important;
+                  max-height: ${groupedReactionCssPx}px !important;
+                  font-size: ${groupedReactionCssPx}px !important;
                   line-height: 1 !important;
                   object-fit: contain !important;
                 }
