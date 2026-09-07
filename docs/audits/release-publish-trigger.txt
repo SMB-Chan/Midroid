@@ -1,4 +1,0 @@
-version=0.1.1
-physical_device_validation=completed
-source=main
-reason=native-audio-fallback-scope-fix
