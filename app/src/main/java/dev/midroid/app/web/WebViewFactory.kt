@@ -15,10 +15,20 @@ import androidx.webkit.WebViewFeature
 import dev.midroid.app.diagnostics.RuntimeDiagnostics
 
 object WebViewFactory {
-    fun create(activity: Activity): WebView {
+    fun create(
+        activity: Activity,
+        profileName: String? = null,
+    ): WebView {
         val webView = WebView(activity)
-        val settings = webView.settings
 
+        if (profileName != null) {
+            check(WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+                "This WebView provider does not support isolated profiles."
+            }
+            WebViewCompat.setProfile(webView, profileName)
+        }
+
+        val settings = webView.settings
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.allowFileAccess = false
@@ -36,12 +46,23 @@ object WebViewFactory {
 
         configureCaching(activity, webView)
 
-        CookieManager.getInstance().setAcceptCookie(true)
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false)
+        cookieManagerFor(webView).apply {
+            setAcceptCookie(true)
+            setAcceptThirdPartyCookies(webView, false)
+        }
 
         val appDebuggable = (activity.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
         WebView.setWebContentsDebuggingEnabled(appDebuggable)
         return webView
+    }
+
+    fun cookieManagerFor(webView: WebView): CookieManager {
+        return if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            runCatching { WebViewCompat.getProfile(webView).cookieManager }
+                .getOrElse { CookieManager.getInstance() }
+        } else {
+            CookieManager.getInstance()
+        }
     }
 
     private fun configureCaching(activity: Activity, webView: WebView) {
@@ -55,20 +76,28 @@ object WebViewFactory {
             WebSettingsCompat.setBackForwardCacheEnabled(settings, true)
         }
 
-        configureServiceWorkerCaching()
+        configureServiceWorkerCaching(webView)
         configureHttpCacheQuota(activity, webView)
     }
 
-    private fun configureServiceWorkerCaching() {
+    private fun configureServiceWorkerCaching(webView: WebView) {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE)) return
 
         runCatching {
-            val workerSettings = ServiceWorkerControllerCompat.getInstance().serviceWorkerWebSettings
-            if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_CACHE_MODE)) {
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+                val workerSettings = WebViewCompat.getProfile(webView)
+                    .serviceWorkerController
+                    .serviceWorkerWebSettings
                 workerSettings.cacheMode = WebSettings.LOAD_DEFAULT
-            }
-            if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BLOCK_NETWORK_LOADS)) {
                 workerSettings.blockNetworkLoads = false
+            } else {
+                val workerSettings = ServiceWorkerControllerCompat.getInstance().serviceWorkerWebSettings
+                if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_CACHE_MODE)) {
+                    workerSettings.cacheMode = WebSettings.LOAD_DEFAULT
+                }
+                if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BLOCK_NETWORK_LOADS)) {
+                    workerSettings.blockNetworkLoads = false
+                }
             }
         }.onFailure { error ->
             Log.w(RuntimeDiagnostics.TAG, "event=service_worker_cache_config_failed type=${error.javaClass.simpleName}")
