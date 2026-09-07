@@ -51,5 +51,7 @@
     <string name="native_audio_focus_failed">音声出力を一時的に利用できません。</string>
     <string name="native_audio_invalid_url">不正な音声URLをブロックしました。</string>
     <string name="native_audio_position">%1$s / %2$s</string>
+    <string name="native_audio_fallback">現在のMisskey音声をAndroidで再生</string>
+    <string name="native_audio_not_found">この画面では、まだ再生可能なMisskey音声URLを検出できません。</string>
     <string name="close">閉じる</string>
 </resources>
