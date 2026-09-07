@@ -1,7 +1,6 @@
-@file:OptIn(androidx.media3.common.util.UnstableApi::class)
-
 package dev.midroid.app.media
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
 import android.net.Uri
@@ -25,6 +24,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import dev.midroid.app.R
 import java.util.Locale
 
+@SuppressLint("UnsafeOptInUsageError")
 class NativeAudioPlayerDialog(
     private val activity: Activity,
 ) {
