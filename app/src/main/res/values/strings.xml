@@ -51,5 +51,7 @@
     <string name="native_audio_focus_failed">Audio output is temporarily unavailable.</string>
     <string name="native_audio_invalid_url">Blocked an invalid native-audio URL.</string>
     <string name="native_audio_position">%1$s / %2$s</string>
+    <string name="native_audio_fallback">Play current Misskey audio with Android</string>
+    <string name="native_audio_not_found">No playable Misskey audio source was detected on this screen yet.</string>
     <string name="close">Close</string>
 </resources>
