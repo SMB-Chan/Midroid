@@ -18,6 +18,7 @@ class MisskeyUiTuner {
               }
 
               style.textContent = `
+                /* Reactions already attached to notes. */
                 button._button:has(> [style*="pointer-events: none"] + span) {
                   height: ${metrics.buttonHeightCssPx}px !important;
                   min-height: ${metrics.buttonHeightCssPx}px !important;
@@ -30,7 +31,19 @@ class MisskeyUiTuner {
 
                 button._button:has(> [style*="pointer-events: none"] + span)
                   > [style*="pointer-events: none"] {
-                  max-height: calc(${metrics.buttonHeightCssPx}px - 10px) !important;
+                  display: inline-flex !important;
+                  align-items: center !important;
+                  justify-content: center !important;
+                  flex: 0 0 ${metrics.noteEmojiCssPx}px !important;
+                  width: ${metrics.noteEmojiCssPx}px !important;
+                  min-width: ${metrics.noteEmojiCssPx}px !important;
+                  max-width: ${metrics.noteEmojiCssPx}px !important;
+                  height: ${metrics.noteEmojiCssPx}px !important;
+                  min-height: ${metrics.noteEmojiCssPx}px !important;
+                  max-height: ${metrics.noteEmojiCssPx}px !important;
+                  font-size: ${metrics.noteEmojiCssPx}px !important;
+                  line-height: 1 !important;
+                  object-fit: contain !important;
                 }
 
                 button._button:has(> [style*="pointer-events: none"] + span)
@@ -38,6 +51,36 @@ class MisskeyUiTuner {
                   line-height: 1 !important;
                   font-size: 0.65em !important;
                   margin-left: 6px !important;
+                }
+
+                /*
+                 * MkNotification uses MkReactionIcon with this stable inline-style signature
+                 * for both single reaction notifications and grouped reaction entries.
+                 * Grow the icon and its immediate holder together so it is not clipped by
+                 * Misskey's native ~20px notification reaction container.
+                 */
+                :is(div, span):has(> [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]) {
+                  width: ${metrics.notificationEmojiCssPx}px !important;
+                  min-width: ${metrics.notificationEmojiCssPx}px !important;
+                  height: ${metrics.notificationEmojiCssPx}px !important;
+                  min-height: ${metrics.notificationEmojiCssPx}px !important;
+                  line-height: ${metrics.notificationEmojiCssPx}px !important;
+                  overflow: visible !important;
+                }
+
+                [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"] {
+                  display: inline-flex !important;
+                  align-items: center !important;
+                  justify-content: center !important;
+                  width: ${metrics.notificationEmojiCssPx}px !important;
+                  min-width: ${metrics.notificationEmojiCssPx}px !important;
+                  max-width: ${metrics.notificationEmojiCssPx}px !important;
+                  height: ${metrics.notificationEmojiCssPx}px !important;
+                  min-height: ${metrics.notificationEmojiCssPx}px !important;
+                  max-height: ${metrics.notificationEmojiCssPx}px !important;
+                  font-size: ${metrics.notificationEmojiCssPx}px !important;
+                  line-height: 1 !important;
+                  object-fit: contain !important;
                 }
 
                 /*
