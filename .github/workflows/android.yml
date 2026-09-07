@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [main, feat/**]
+    branches: [main, feat/**, chore/**]
   pull_request:
 
 permissions:
@@ -23,51 +23,36 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Prepare stable update signing
-        id: update_signing
-        shell: bash
-        env:
-          KEYSTORE_B64: ${{ secrets.MIDROID_SIGNING_KEYSTORE_B64 }}
-          STORE_PASSWORD: ${{ secrets.MIDROID_SIGNING_STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.MIDROID_SIGNING_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.MIDROID_SIGNING_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [[ -n "$KEYSTORE_B64" && -n "$STORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
-            keystore="$RUNNER_TEMP/midroid-update.jks"
-            printf '%s' "$KEYSTORE_B64" | base64 --decode > "$keystore"
-            chmod 600 "$keystore"
-            {
-              echo "MIDROID_SIGNING_STORE_FILE=$keystore"
-              echo "MIDROID_SIGNING_STORE_PASSWORD=$STORE_PASSWORD"
-              echo "MIDROID_SIGNING_KEY_ALIAS=$KEY_ALIAS"
-              echo "MIDROID_SIGNING_KEY_PASSWORD=$KEY_PASSWORD"
-            } >> "$GITHUB_ENV"
-            echo "stable=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "stable=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Stable update signing is not configured; release will be built unsigned and no update artifact will be published."
-          fi
-
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
+
       - uses: android-actions/setup-android@v4
         with:
           packages: ''
           log-accepted-android-sdk-licenses: false
+
       - name: Install Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.6.0
+
       - name: Validate shell tooling
         run: |
           bash -n tools/benchmark_android.sh
           bash -n tools/bootstrap_update_signing.sh
+
       - name: Verify debug and release builds
         run: gradle --stacktrace lint testDebugUnitTest assembleDebug assembleRelease
+
+      - name: Verify unsigned release output exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Record CI debug APK identity
         shell: bash
@@ -79,17 +64,6 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" \
             | tee "$dir/app-debug.signing.txt"
 
-      - name: Record update release APK identity
-        if: steps.update_signing.outputs.stable == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          dir="app/build/outputs/apk/release"
-          apk="$dir/app-release.apk"
-          sha256sum "$apk" | tee "$apk.sha256"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" \
-            | tee "$dir/app-release.signing.txt"
-
       - name: Upload CI debug APK
         uses: actions/upload-artifact@v7
         with:
@@ -100,15 +74,3 @@ jobs:
             app/build/outputs/apk/debug/app-debug.signing.txt
           if-no-files-found: error
           retention-days: 14
-
-      - name: Upload update-compatible release APK
-        if: steps.update_signing.outputs.stable == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: Midroid-update-apk
-          path: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/release/app-release.apk.sha256
-            app/build/outputs/apk/release/app-release.signing.txt
-          if-no-files-found: error
-          retention-days: 30
