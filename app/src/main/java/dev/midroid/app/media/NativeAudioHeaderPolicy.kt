@@ -1,6 +1,7 @@
 package dev.midroid.app.media
 
 import java.net.URI
+import java.util.Locale
 
 object NativeAudioHeaderPolicy {
     fun sanitize(
@@ -24,14 +25,19 @@ object NativeAudioHeaderPolicy {
         return left == right
     }
 
-    private fun parseHttpsOrigin(value: String): Origin? = try {
-        val uri = URI(value)
-        if (!uri.scheme.equals("https", ignoreCase = true)) return null
-        val host = uri.host?.lowercase() ?: return null
-        val port = if (uri.port == -1) 443 else uri.port
-        Origin(host, port)
-    } catch (_: Exception) {
-        null
+    private fun parseHttpsOrigin(value: String): Origin? {
+        return try {
+            val uri = URI(value)
+            val host = uri.host?.lowercase(Locale.ROOT)
+            if (!uri.scheme.equals("https", ignoreCase = true) || host.isNullOrBlank()) {
+                null
+            } else {
+                val port = if (uri.port == -1) 443 else uri.port
+                Origin(host, port)
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private data class Origin(
