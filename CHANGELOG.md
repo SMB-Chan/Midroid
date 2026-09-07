@@ -6,7 +6,15 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 ## [Unreleased]
 
-No unreleased user-facing changes are currently recorded.
+### Fixed
+
+- Preserve the intrinsic aspect ratio of wide timeline reaction emoji so long horizontal artwork scales by height instead of being squeezed into a square and appearing tiny.
+- Increase the visible timeline reaction emoji height for Standard / Large / Extra Large modes while keeping a capped width for exceptionally wide custom emoji.
+- Enlarge notification status sub-icons such as login, access-token, reply and renote badges independently from reaction artwork.
+- Enlarge grouped-notification header symbols such as `+`, heart and renote, which Misskey otherwise keeps at a fixed 15px glyph size.
+- Render single notification reactions below the avatar and grouped reaction items as avatar/reaction stacks, preserving reaction aspect ratio and avoiding avatar overlap.
+- Clarify reaction-size settings by distinguishing tap-target size from actual emoji height.
+- Replace the fixed-height native browser toolbar with translucent overlay controls so the Misskey WebView uses the full browser content height while account, audio and settings actions remain directly accessible.
 
 ## [0.1.2] - 2026-09-08
 

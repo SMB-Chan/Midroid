@@ -38,13 +38,13 @@
     <string name="text_scale_145_description">Maximum built-in text enlargement.</string>
     <string name="text_scale_auto_current">%1$s (%2$d%% on this device)\n%3$s</string>
     <string name="reaction_size">Reaction size</string>
-    <string name="reaction_size_description">Independent from text scale. Changes timeline reactions and the reaction deck/picker emoji cells and tap targets.</string>
+    <string name="reaction_size_description">Independent from text scale. Changes timeline reactions and the reaction deck/picker emoji cells and tap targets. Wide reactions keep their aspect ratio and scale by height.</string>
     <string name="reaction_standard_title">Standard</string>
-    <string name="reaction_standard_description">Comfortable 52px reaction controls with a 48px picker grid.</string>
+    <string name="reaction_standard_description">52px tap target, up to 40px emoji height, and a 48px picker grid for comfortable everyday use.</string>
     <string name="reaction_large_title">Large</string>
-    <string name="reaction_large_description">Larger 60px reactions and a 56px picker grid for easier tapping and recognition.</string>
+    <string name="reaction_large_description">60px tap target, up to 48px emoji height, and a 56px picker grid for easier tapping and recognition.</string>
     <string name="reaction_extra_large_title">Extra large</string>
-    <string name="reaction_extra_large_description">Maximum 68px reactions with a 64px picker grid for high visibility.</string>
+    <string name="reaction_extra_large_description">68px tap target, up to 58px emoji height, and a 64px picker grid for maximum visibility including wide reactions.</string>
     <string name="open_misskey">Open Misskey</string>
     <string name="webview_provider_unavailable">WebView provider: unavailable</string>
     <string name="webview_provider">WebView provider: %1$s %2$s</string>
