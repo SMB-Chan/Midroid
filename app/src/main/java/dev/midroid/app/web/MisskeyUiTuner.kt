@@ -6,7 +6,7 @@ import dev.midroid.app.config.ReactionScale
 class MisskeyUiTuner {
     fun applyReactionScale(webView: WebView, scale: ReactionScale) {
         val metrics = ReactionScalePolicy.forScale(scale)
-        val groupedReactionCssPx = (metrics.notificationReactionCssPx - 14).coerceAtLeast(28)
+        val groupedReactionCssPx = (metrics.notificationReactionCssPx - 8).coerceAtLeast(30)
         val groupedReactionMaxWidthCssPx = groupedReactionCssPx * 3
 
         webView.evaluateJavascript(
@@ -81,22 +81,49 @@ class MisskeyUiTuner {
                     delete subIcon.dataset.midroidNotificationReaction;
                   }
 
+                  tail.querySelectorAll(
+                    '[data-midroid-grouped-reaction-list], [data-midroid-grouped-reaction-item], [data-midroid-grouped-reaction-avatar], [data-midroid-grouped-reaction], [data-midroid-grouped-reaction-graphic]'
+                  ).forEach((node) => {
+                    if (!(node instanceof HTMLElement)) return;
+                    delete node.dataset.midroidGroupedReactionList;
+                    delete node.dataset.midroidGroupedReactionItem;
+                    delete node.dataset.midroidGroupedReactionAvatar;
+                    delete node.dataset.midroidGroupedReaction;
+                    delete node.dataset.midroidGroupedReactionGraphic;
+                  });
+
                   const groupedLists = new Map();
-                  tail.querySelectorAll('div').forEach((item) => {
-                    if (!(item instanceof HTMLElement) || item.children.length !== 2) return;
-                    const avatar = item.children.item(0);
-                    const reaction = item.children.item(1);
-                    if (!(avatar instanceof HTMLElement) || !(reaction instanceof HTMLElement)) return;
+                  const groupedGraphics = tail.querySelectorAll(
+                    '[style*="object-fit: contain"], img[alt^=":"], img[src*="/emoji/"], img[src*="emoji"]'
+                  );
+                  groupedGraphics.forEach((candidate) => {
+                    if (!(candidate instanceof HTMLElement)) return;
 
-                    const avatarImage = avatar.matches('img') ? avatar : avatar.querySelector('img');
-                    if (!(avatarImage instanceof HTMLElement)) return;
+                    let reaction = candidate.parentElement;
+                    let item = null;
+                    let avatar = null;
+                    for (let depth = 0; depth < 4 && reaction instanceof HTMLElement; depth += 1) {
+                      const parent = reaction.parentElement;
+                      if (!(parent instanceof HTMLElement)) break;
+                      if (parent.children.length === 2 && parent.lastElementChild === reaction) {
+                        const avatarCandidate = parent.firstElementChild;
+                        if (avatarCandidate instanceof HTMLElement) {
+                          const avatarImage = avatarCandidate.matches('img')
+                            ? avatarCandidate
+                            : avatarCandidate.querySelector('img');
+                          if (avatarImage instanceof HTMLElement) {
+                            item = parent;
+                            avatar = avatarCandidate;
+                            break;
+                          }
+                        }
+                      }
+                      reaction = parent;
+                    }
 
-                    const groupedReactionGraphic = markReactionGraphic(
-                      reaction,
-                      'midroidGroupedReactionGraphic',
-                    );
-                    if (!groupedReactionGraphic) return;
+                    if (!(reaction instanceof HTMLElement) || !(item instanceof HTMLElement) || !(avatar instanceof HTMLElement)) return;
 
+                    candidate.dataset.midroidGroupedReactionGraphic = '1';
                     item.dataset.midroidGroupedReactionItem = '1';
                     avatar.dataset.midroidGroupedReactionAvatar = '1';
                     reaction.dataset.midroidGroupedReaction = '1';
@@ -302,8 +329,8 @@ class MisskeyUiTuner {
                 [data-midroid-grouped-reaction-list="1"] {
                   display: flex !important;
                   flex-wrap: wrap !important;
-                  align-items: center !important;
-                  gap: 8px 12px !important;
+                  align-items: flex-start !important;
+                  gap: 10px 12px !important;
                   width: 100% !important;
                   max-width: 100% !important;
                   margin-top: 10px !important;
@@ -313,18 +340,19 @@ class MisskeyUiTuner {
                 [data-midroid-grouped-reaction-item="1"] {
                   display: inline-flex !important;
                   flex: 0 1 auto !important;
-                  flex-direction: row !important;
+                  flex-direction: column !important;
                   align-items: center !important;
                   justify-content: flex-start !important;
-                  gap: 6px !important;
+                  gap: 4px !important;
                   position: relative !important;
-                  width: auto !important;
-                  min-width: 0 !important;
-                  max-width: min(100%, ${metrics.notificationGroupAvatarCssPx + 6 + groupedReactionMaxWidthCssPx}px) !important;
-                  height: ${metrics.notificationGroupAvatarCssPx}px !important;
-                  min-height: ${metrics.notificationGroupAvatarCssPx}px !important;
-                  max-height: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  width: max-content !important;
+                  min-width: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  max-width: min(100%, ${groupedReactionMaxWidthCssPx}px) !important;
+                  height: auto !important;
+                  min-height: ${metrics.notificationGroupAvatarCssPx + 4 + groupedReactionCssPx}px !important;
+                  max-height: none !important;
                   margin: 0 !important;
+                  padding: 2px 0 !important;
                   overflow: hidden !important;
                 }
 
@@ -344,7 +372,7 @@ class MisskeyUiTuner {
                   display: inline-flex !important;
                   flex: 0 1 auto !important;
                   align-items: center !important;
-                  justify-content: flex-start !important;
+                  justify-content: center !important;
                   width: auto !important;
                   min-width: 0 !important;
                   max-width: ${groupedReactionMaxWidthCssPx}px !important;
