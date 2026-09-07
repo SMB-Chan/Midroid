@@ -1,10 +1,11 @@
 package dev.midroid.app.web
 
 import android.webkit.WebView
+import dev.midroid.app.config.ReactionScale
 
 class MisskeyUiTuner {
-    fun applyReactionScale(webView: WebView, textZoomPercent: Int) {
-        val metrics = ReactionScalePolicy.forTextZoom(textZoomPercent)
+    fun applyReactionScale(webView: WebView, scale: ReactionScale) {
+        val metrics = ReactionScalePolicy.forScale(scale)
         webView.evaluateJavascript(
             """
             (() => {
