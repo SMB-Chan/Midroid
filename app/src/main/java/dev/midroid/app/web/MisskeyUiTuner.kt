@@ -18,15 +18,11 @@ class MisskeyUiTuner {
               }
 
               const supportsHas = !!window.CSS?.supports?.('selector(:has(*))');
-              const pickerSelectors = [
-                '.omfetrab',
-                '[role="dialog"]:has(button._button.item)',
-                '[class*="emoji"]:has(button._button.item)',
-              ];
+              // Keep the legacy generated class as a compatibility fallback, but do not depend
+              // on it exclusively. The structural selectors remain dormant until a matching
+              // picker is present, so Misskey updates fail closed instead of reshaping the page.
               const pickerRoot = supportsHas
-                ? pickerSelectors.find((selector) => {
-                    try { return document.querySelector(selector); } catch (_) { return false; }
-                  }) ?? null
+                ? ':is(.omfetrab, [role="dialog"]:has(button._button.item), [class*="emoji"]:has(button._button.item))'
                 : '.omfetrab';
 
               const hasRules = supportsHas ? `
@@ -91,56 +87,53 @@ class MisskeyUiTuner {
                 }
               `;
 
-              let pickerRules = '';
-              if (pickerRoot) {
-                const root = pickerRoot;
-                const gridRule = supportsHas
-                  ? root + ` :has(> button._button.item) {
-                      display: grid !important;
-                      grid-template-columns: repeat(auto-fill, minmax(${metrics.deckCellCssPx}px, ${metrics.deckCellCssPx}px)) !important;
-                      justify-content: space-around !important;
-                      justify-items: center !important;
-                      align-items: center !important;
-                      gap: 4px !important;
-                      width: 100% !important;
-                      min-width: 0 !important;
-                      max-width: 100% !important;
-                      overflow-x: hidden !important;
-                    }`
-                  : '';
-
-                pickerRules = root + ` {
-                    box-sizing: border-box !important;
-                    width: min(100%, calc(100dvw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))) !important;
-                    max-width: calc(100dvw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
-                    margin-left: auto !important;
-                    margin-right: auto !important;
-                    overflow-x: hidden !important;
-                    overscroll-behavior-x: none !important;
-                  }
-                ` + root + ` * {
-                    box-sizing: border-box !important;
-                    max-width: 100%;
-                  }
-                ` + gridRule + `
-                ` + root + ` button._button.item {
-                    width: ${metrics.deckCellCssPx}px !important;
+              const root = pickerRoot;
+              const gridRule = supportsHas
+                ? root + ` :has(> button._button.item) {
+                    display: grid !important;
+                    grid-template-columns: repeat(auto-fill, minmax(${metrics.deckCellCssPx}px, ${metrics.deckCellCssPx}px)) !important;
+                    justify-content: space-around !important;
+                    justify-items: center !important;
+                    align-items: center !important;
+                    gap: 4px !important;
+                    width: 100% !important;
                     min-width: 0 !important;
-                    max-width: ${metrics.deckCellCssPx}px !important;
-                    height: ${metrics.deckCellCssPx}px !important;
-                    min-height: ${metrics.deckCellCssPx}px !important;
-                    padding: 4px !important;
-                    box-sizing: border-box !important;
-                  }
-                ` + root + ` button._button.item > .emoji {
-                    width: ${metrics.deckEmojiCssPx}px !important;
-                    max-width: ${metrics.deckEmojiCssPx}px !important;
-                    height: ${metrics.deckEmojiCssPx}px !important;
-                    max-height: ${metrics.deckEmojiCssPx}px !important;
-                    font-size: ${metrics.deckEmojiCssPx}px !important;
-                    object-fit: contain !important;
-                  }`;
-              }
+                    max-width: 100% !important;
+                    overflow-x: hidden !important;
+                  }`
+                : '';
+
+              const pickerRules = root + ` {
+                  box-sizing: border-box !important;
+                  width: min(100%, calc(100dvw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))) !important;
+                  max-width: calc(100dvw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
+                  margin-left: auto !important;
+                  margin-right: auto !important;
+                  overflow-x: hidden !important;
+                  overscroll-behavior-x: none !important;
+                }
+              ` + root + ` * {
+                  box-sizing: border-box !important;
+                  max-width: 100%;
+                }
+              ` + gridRule + `
+              ` + root + ` button._button.item {
+                  width: ${metrics.deckCellCssPx}px !important;
+                  min-width: 0 !important;
+                  max-width: ${metrics.deckCellCssPx}px !important;
+                  height: ${metrics.deckCellCssPx}px !important;
+                  min-height: ${metrics.deckCellCssPx}px !important;
+                  padding: 4px !important;
+                  box-sizing: border-box !important;
+                }
+              ` + root + ` button._button.item > .emoji {
+                  width: ${metrics.deckEmojiCssPx}px !important;
+                  max-width: ${metrics.deckEmojiCssPx}px !important;
+                  height: ${metrics.deckEmojiCssPx}px !important;
+                  max-height: ${metrics.deckEmojiCssPx}px !important;
+                  font-size: ${metrics.deckEmojiCssPx}px !important;
+                  object-fit: contain !important;
+                }`;
 
               style.textContent = hasRules + notificationFallback + pickerRules;
             })();
