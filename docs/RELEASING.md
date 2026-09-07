@@ -49,9 +49,17 @@ Pre-release identifiers are allowed, for example `v0.1.0-rc.1`.
 
 The release workflow derives `versionName` from the tag and maps the release workflow's monotonically increasing GitHub Actions run number to `versionCode = 1,000,000 + run_number`. It also compares the candidate with the previous GitHub Release's recorded version-code asset and fails closed if ordering cannot be proven.
 
+## Signed preflight before the first tag
+
+After the release candidate has reached `main`, run **Actions → Signed APK Release Preflight → Run workflow** from `main`. This manual workflow uses the same persistent signing identity and certificate gate as the public release path, but it does **not** create a GitHub Release or tag.
+
+Download the resulting short-lived `Midroid-signed-release-preflight-*` artifact and use it for the physical-device release-candidate checks. Before the first public release, run a second preflight after the first test APK and verify that Android accepts the newer APK as an in-place update while preserving app/WebView data. Record both `versionCode` values and confirm that the signing certificate SHA-256 fingerprint is identical.
+
+The preflight artifact is retained only for seven days and is for release validation, not public distribution.
+
 ## Publish
 
-After the release commit is on `main`, create and push the signed version tag. The `Public APK Release` workflow will:
+After the release commit is on `main`, the signed preflight/device/update checks are complete, and no release blocker remains, create and push the signed version tag. The `Public APK Release` workflow will:
 
 1. require all four signing secrets;
 2. install JDK 17, Android SDK 36 and Gradle 9.6.0;
