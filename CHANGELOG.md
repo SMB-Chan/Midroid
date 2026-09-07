@@ -6,7 +6,12 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 ## [Unreleased]
 
-No unreleased user-facing changes are currently recorded.
+### Fixed
+
+- Rework notification scaling to bind to the live `MkNotification` DOM at runtime instead of depending on generated CSS-module structure, and keep the bindings updated as Misskey replaces notification rows in its SPA.
+- Increase the visual separation between Standard / Large / Extra Large notification avatars, reaction artwork, status badges and grouped-notification symbols.
+- Reapply the notification/reaction tuning after same-origin SPA history changes so the notification page receives the active scale without requiring a full reload.
+- Replace the always-visible full-width translucent browser overlay with a compact floating Midroid menu button; account switching, native audio and settings remain available without covering Misskey's title and navigation controls.
 
 ## [0.1.3] - 2026-09-08
 
