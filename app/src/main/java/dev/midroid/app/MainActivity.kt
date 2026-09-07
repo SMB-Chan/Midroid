@@ -128,6 +128,7 @@ class MainActivity : ComponentActivity() {
         webView?.let { view ->
             applyTextScale(view, newConfig)
             uiTuner.applyReactionScale(view, currentReactionScale)
+            mediaFallbackBridge.install(view)
         }
     }
 
@@ -160,8 +161,6 @@ class MainActivity : ComponentActivity() {
             navigationState.isMisskeyLightboxOpen()
         if (!shouldInterrupt) return false
 
-        // Cancel outstanding page/image requests first. Back navigation must never wait for
-        // a large media response to finish before the user can leave the current surface.
         val fallbackUrl = navigationState.interruptedReturnUrl()
         active.stopLoading()
         navigationState.onLoadCancelled()
@@ -246,7 +245,10 @@ class MainActivity : ComponentActivity() {
                 navigationState.onPageCommitted(committedUrl)
                 lastKnownUrl = committedUrl
             },
-            onHistoryChanged = { navigationState.onHistoryChanged(it) },
+            onHistoryChanged = { historyUrl ->
+                navigationState.onHistoryChanged(historyUrl)
+                mediaFallbackBridge.install(created)
+            },
             onPageReady = { view, finishedUrl ->
                 navigationState.onPageFinished(finishedUrl)
                 RuntimeDiagnostics.logPageReady(this, currentMode, navigationState.currentUrl ?: lastKnownUrl)
@@ -260,6 +262,32 @@ class MainActivity : ComponentActivity() {
         created.webChromeClient = MidroidWebChromeClient(::launchFileChooser)
         created.setDownloadListener { downloadUrl, userAgent, contentDisposition, mimeType, _ ->
             enqueueDownload(downloadUrl, userAgent, contentDisposition, mimeType)
+        }
+
+        val nativeAudioButton = Button(this).apply {
+            text = "♫"
+            contentDescription = getString(R.string.native_audio_fallback)
+            textSize = 19f
+            alpha = 0.8f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(0xAA202124.toInt())
+            minWidth = dp(48)
+            minimumWidth = dp(48)
+            minHeight = dp(48)
+            minimumHeight = dp(48)
+            setPadding(0, 0, 0, 0)
+            setOnClickListener {
+                mediaFallbackBridge.install(created)
+                mediaFallbackBridge.requestPlayback(created) { started ->
+                    if (!started) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            R.string.native_audio_not_found,
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+            }
         }
 
         val settingsButton = Button(this).apply {
@@ -277,8 +305,6 @@ class MainActivity : ComponentActivity() {
             setOnClickListener { showSetup() }
         }
 
-        // Keep native controls out of Misskey's own top navigation. The previous overlay
-        // occupied the same pixels as Misskey tabs and could intercept their touch targets.
         val toolbar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -287,6 +313,7 @@ class MainActivity : ComponentActivity() {
                 textSize = 16f
                 setPadding(dp(16), 0, 0, 0)
             }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(nativeAudioButton, LinearLayout.LayoutParams(dp(48), dp(48)))
             addView(settingsButton, LinearLayout.LayoutParams(dp(48), dp(48)))
         }
         root.addView(
@@ -432,7 +459,6 @@ class MainActivity : ComponentActivity() {
                     WindowInsetsCompat.Type.ime(),
             )
             view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
-            // This native container owns the safe area; do not inset the WebView again.
             WindowInsetsCompat.CONSUMED
         }
         setContentView(container)
