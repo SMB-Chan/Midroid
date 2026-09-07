@@ -31,12 +31,15 @@ import dev.midroid.app.config.InstanceConfig
 import dev.midroid.app.config.ReactionScale
 import dev.midroid.app.config.TextScale
 import dev.midroid.app.diagnostics.RuntimeDiagnostics
+import dev.midroid.app.media.NativeAudioPlayerDialog
+import dev.midroid.app.media.NativeAudioRequest
 import dev.midroid.app.power.PowerMode
 import dev.midroid.app.power.WebViewPowerController
 import dev.midroid.app.ui.SetupScreen
 import dev.midroid.app.web.ExternalNavigator
 import dev.midroid.app.web.MidroidWebChromeClient
 import dev.midroid.app.web.MidroidWebViewClient
+import dev.midroid.app.web.MisskeyMediaFallbackBridge
 import dev.midroid.app.web.MisskeyUiTuner
 import dev.midroid.app.web.NavigationState
 import dev.midroid.app.web.WebViewFactory
@@ -46,9 +49,11 @@ class MainActivity : ComponentActivity() {
     private val powerController = WebViewPowerController()
     private val navigationState = NavigationState()
     private val uiTuner = MisskeyUiTuner()
+    private val mediaFallbackBridge = MisskeyMediaFallbackBridge()
 
     private var webView: WebView? = null
     private var browserRoot: LinearLayout? = null
+    private var nativeAudioPlayer: NativeAudioPlayerDialog? = null
     private var currentInstance: InstanceConfig? = null
     private var currentMode: PowerMode = PowerMode.BALANCED
     private var currentTextScale: TextScale = TextScale.AUTO
@@ -112,6 +117,7 @@ class MainActivity : ComponentActivity() {
             currentMode,
             navigationState.currentUrl ?: lastKnownUrl ?: currentInstance?.origin,
         )
+        nativeAudioPlayer?.pause()
         webView?.let { powerController.onBackground(it) }
         visibleToUser = false
         super.onStop()
@@ -126,6 +132,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        nativeAudioPlayer?.dismiss()
+        nativeAudioPlayer = null
         destroyWebView()
         super.onDestroy()
     }
@@ -172,6 +180,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showSetup() {
+        nativeAudioPlayer?.dismiss()
+        nativeAudioPlayer = null
         destroyWebView()
         val screen = SetupScreen(
             activity = this,
@@ -242,7 +252,9 @@ class MainActivity : ComponentActivity() {
                 RuntimeDiagnostics.logPageReady(this, currentMode, navigationState.currentUrl ?: lastKnownUrl)
                 powerController.onPageReady(this, view, currentMode)
                 uiTuner.applyReactionScale(view, currentReactionScale)
+                mediaFallbackBridge.install(view)
             },
+            onNativeAudioRequested = { request -> playNativeAudio(request, created) },
             onRendererGone = ::handleRendererGone,
         )
         created.webChromeClient = MidroidWebChromeClient(::launchFileChooser)
@@ -289,6 +301,26 @@ class MainActivity : ComponentActivity() {
         setInsetContentView(root)
         created.loadUrl(url)
         if (visibleToUser) powerController.onForeground(this, created, currentMode)
+    }
+
+    private fun playNativeAudio(request: NativeAudioRequest, sourceWebView: WebView) {
+        val headers = linkedMapOf<String, String>()
+        sourceWebView.settings.userAgentString
+            ?.takeIf { it.isNotBlank() }
+            ?.let { headers["User-Agent"] = it }
+        CookieManager.getInstance().getCookie(request.sourceUrl)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { headers["Cookie"] = it }
+
+        val referer = navigationState.currentUrl ?: lastKnownUrl
+        if (!referer.isNullOrBlank() && Uri.parse(referer).scheme.equals("https", ignoreCase = true)) {
+            headers["Referer"] = referer
+        }
+
+        nativeAudioPlayer?.dismiss()
+        nativeAudioPlayer = NativeAudioPlayerDialog(this).also { player ->
+            player.show(request, headers)
+        }
     }
 
     private fun resolveTextZoom(configuration: Configuration = resources.configuration): Int {
