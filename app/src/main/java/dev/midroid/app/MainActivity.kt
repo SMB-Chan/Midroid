@@ -10,7 +10,6 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
-import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.webkit.RenderProcessGoneDetail
@@ -21,6 +20,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -459,6 +459,7 @@ class MainActivity : ComponentActivity() {
             onHistoryChanged = { historyUrl ->
                 navigationState.onHistoryChanged(historyUrl)
                 accountRegistry.updateLastUrl(account.id, historyUrl)
+                uiTuner.applyReactionScale(created, currentReactionScale)
                 mediaFallbackBridge.install(created)
             },
             onPageReady = { view, finishedUrl ->
@@ -476,95 +477,61 @@ class MainActivity : ComponentActivity() {
             enqueueDownload(created, downloadUrl, userAgent, contentDisposition, mimeType)
         }
 
-        val accountButton = Button(this).apply {
-            text = "⇄"
-            contentDescription = getString(R.string.switch_account)
-            textSize = 18f
-            alpha = 0.9f
-            setTextColor(Color.WHITE)
-            background = browserControlBackground()
-            minWidth = dp(40)
-            minimumWidth = dp(40)
-            minHeight = dp(40)
-            minimumHeight = dp(40)
-            setPadding(0, 0, 0, 0)
-            stateListAnimator = null
-            setOnClickListener { showAccountSwitcher() }
-        }
-
-        val nativeAudioButton = Button(this).apply {
-            text = "♫"
-            contentDescription = getString(R.string.native_audio_fallback)
-            textSize = 19f
-            alpha = 0.9f
-            setTextColor(Color.WHITE)
-            background = browserControlBackground()
-            minWidth = dp(40)
-            minimumWidth = dp(40)
-            minHeight = dp(40)
-            minimumHeight = dp(40)
-            setPadding(0, 0, 0, 0)
-            stateListAnimator = null
-            setOnClickListener {
-                mediaFallbackBridge.install(created)
-                mediaFallbackBridge.requestPlayback(created) { started ->
-                    if (!started) {
-                        Toast.makeText(
-                            this@MainActivity,
-                            R.string.native_audio_not_found,
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
+        val requestNativeAudio = {
+            mediaFallbackBridge.install(created)
+            mediaFallbackBridge.requestPlayback(created) { started ->
+                if (!started) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        R.string.native_audio_not_found,
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 }
             }
         }
 
-        val settingsButton = Button(this).apply {
-            text = "⚙"
-            contentDescription = getString(R.string.settings)
-            textSize = 18f
-            alpha = 0.9f
+        val menuButton = TextView(this).apply {
+            text = "M"
+            contentDescription = getString(R.string.app_name)
+            textSize = 15f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             background = browserControlBackground()
-            minWidth = dp(40)
-            minimumWidth = dp(40)
-            minHeight = dp(40)
-            minimumHeight = dp(40)
+            alpha = 0.86f
+            elevation = dp(6).toFloat()
+            isClickable = true
+            isFocusable = true
             setPadding(0, 0, 0, 0)
-            stateListAnimator = null
-            setOnClickListener { showSetup() }
-        }
-
-        fun browserControlParams(): LinearLayout.LayoutParams {
-            return LinearLayout.LayoutParams(dp(40), dp(40)).apply {
-                marginStart = dp(4)
+            setOnClickListener { anchor ->
+                alpha = 1f
+                PopupMenu(this@MainActivity, anchor).apply {
+                    menu.add(0, 1, 0, "${getString(R.string.app_name)} · ${account.displayLabel()}").apply {
+                        isEnabled = false
+                    }
+                    menu.add(0, 2, 1, R.string.switch_account)
+                    menu.add(0, 3, 2, R.string.native_audio_fallback)
+                    menu.add(0, 4, 3, R.string.settings)
+                    setOnMenuItemClickListener { item ->
+                        when (item.itemId) {
+                            2 -> {
+                                showAccountSwitcher()
+                                true
+                            }
+                            3 -> {
+                                requestNativeAudio()
+                                true
+                            }
+                            4 -> {
+                                showSetup()
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                    setOnDismissListener { alpha = 0.86f }
+                }.show()
             }
-        }
-
-        val toolbar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            isClickable = false
-            isFocusable = false
-            setPadding(dp(10), dp(2), dp(6), dp(2))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0x66202124.toInt(), 0x11202124),
-            )
-            elevation = dp(4).toFloat()
-            addView(TextView(this@MainActivity).apply {
-                text = "${getString(R.string.app_name)} · ${account.displayLabel()}"
-                textSize = 15f
-                alpha = 0.94f
-                setTextColor(Color.WHITE)
-                setShadowLayer(4f, 0f, 1f, Color.BLACK)
-                maxLines = 1
-                ellipsize = TextUtils.TruncateAt.END
-                setPadding(dp(6), 0, dp(4), 0)
-            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            addView(accountButton, browserControlParams())
-            addView(nativeAudioButton, browserControlParams())
-            addView(settingsButton, browserControlParams())
         }
 
         root.addView(
@@ -575,12 +542,15 @@ class MainActivity : ComponentActivity() {
             ),
         )
         root.addView(
-            toolbar,
+            menuButton,
             FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                dp(44),
-                Gravity.TOP,
-            ),
+                dp(40),
+                dp(40),
+                Gravity.TOP or Gravity.END,
+            ).apply {
+                topMargin = dp(6)
+                marginEnd = dp(6)
+            },
         )
 
         setInsetContentView(root)
@@ -724,8 +694,10 @@ class MainActivity : ComponentActivity() {
 
     private fun browserControlBackground(): GradientDrawable {
         return GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(0x7A202124)
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(14).toFloat()
+            setColor(0xB3202124.toInt())
+            setStroke(dp(1), 0x33FFFFFF)
         }
     }
 
