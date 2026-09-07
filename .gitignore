@@ -9,6 +9,9 @@ captures/
 .cxx/
 app/build/
 
+# Generated from app/launcher-icon-foreground.b64 during preBuild.
+app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.webp
+
 # Signing material must never enter version control.
 *.jks
 *.keystore
