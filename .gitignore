@@ -1,0 +1,29 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+captures/
+.externalNativeBuild/
+.cxx/
+app/build/
+
+# Local environment/configuration files.
+.env
+.env.*
+keystore.properties
+signing.properties
+
+# Generated from app/launcher-icon-foreground.b64 during preBuild.
+app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.webp
+
+# Signing material must never enter version control.
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.der
+midroid-signing.env

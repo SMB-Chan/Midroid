@@ -1,0 +1,210 @@
+name: Public APK Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release tag and version code
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Unsupported release tag: $tag" >&2
+            exit 1
+          fi
+
+          version_code="$(tools/release_version_code.sh "$GITHUB_RUN_NUMBER")"
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+          echo "MIDROID_VERSION_NAME=$version" >> "$GITHUB_ENV"
+          echo "MIDROID_VERSION_CODE=$version_code" >> "$GITHUB_ENV"
+
+      - name: Require tagged commit on main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${GITHUB_SHA}...main" --jq .status)"
+          case "$status" in
+            ahead|identical) ;;
+            *)
+              echo "Release tag must point to a commit already contained in main (compare status: $status)." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Enforce versionCode monotonicity against previous release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          previous_tag="$(gh release list --limit 1 --exclude-drafts --json tagName --jq '.[0].tagName // empty')"
+          if [[ -z "$previous_tag" ]]; then
+            echo "No previous GitHub Release; first public versionCode gate passed."
+            exit 0
+          fi
+
+          tmp="$RUNNER_TEMP/previous-version-code"
+          mkdir -p "$tmp"
+          if ! gh release download "$previous_tag" --pattern 'Midroid-*.version-code.txt' --dir "$tmp"; then
+            echo "Previous release $previous_tag lacks a versionCode asset; refusing to guess update ordering." >&2
+            exit 1
+          fi
+          previous_file="$(find "$tmp" -maxdepth 1 -name 'Midroid-*.version-code.txt' -type f | head -n1)"
+          previous="$(tr -d '[:space:]' < "$previous_file")"
+          candidate="${{ steps.version.outputs.version_code }}"
+          if [[ ! "$previous" =~ ^[0-9]+$ ]] || (( candidate <= previous )); then
+            echo "Candidate versionCode $candidate is not greater than previous $previous." >&2
+            exit 1
+          fi
+
+      - name: Prepare stable release signing file
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.MIDROID_SIGNING_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.MIDROID_SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MIDROID_SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MIDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEYSTORE_B64" || -z "$STORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
+            echo "Stable Midroid signing secrets are incomplete. Refusing to publish." >&2
+            exit 1
+          fi
+          keystore="$RUNNER_TEMP/midroid-update.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$keystore"
+          chmod 600 "$keystore"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+          log-accepted-android-sdk-licenses: false
+
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 9.6.0
+
+      - name: Validate release tooling
+        run: |
+          bash -n tools/benchmark_android.sh
+          bash -n tools/bootstrap_update_signing.sh
+          bash -n tools/release_version_code.sh
+          bash -n tools/test_release_version_code.sh
+          bash tools/test_release_version_code.sh
+
+      - name: Verify and build signed release
+        env:
+          MIDROID_SIGNING_STORE_FILE: ${{ runner.temp }}/midroid-update.jks
+          MIDROID_SIGNING_STORE_PASSWORD: ${{ secrets.MIDROID_SIGNING_STORE_PASSWORD }}
+          MIDROID_SIGNING_KEY_ALIAS: ${{ secrets.MIDROID_SIGNING_KEY_ALIAS }}
+          MIDROID_SIGNING_KEY_PASSWORD: ${{ secrets.MIDROID_SIGNING_KEY_PASSWORD }}
+        run: gradle --no-daemon --stacktrace lint testDebugUnitTest assembleRelease
+
+      - name: Remove release keystore
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/midroid-update.jks"
+
+      - name: Verify release identity and prepare assets
+        id: assets
+        shell: bash
+        env:
+          EXPECTED_RELEASE_CERT_SHA256: d6540699dafc1c37764948e1efed476580162c0add4b1a2b18cd6854cc5206c6
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          source_apk="app/build/outputs/apk/release/app-release.apk"
+          if [[ ! -f "$source_apk" ]]; then
+            echo "Signed release APK was not produced: $source_apk" >&2
+            exit 1
+          fi
+
+          out="$RUNNER_TEMP/midroid-release"
+          mkdir -p "$out"
+          apk="$out/Midroid-${version}.apk"
+          cp "$source_apk" "$apk"
+          sha="$out/Midroid-${version}.apk.sha256"
+          cert="$out/Midroid-${version}.signing.txt"
+          version_code_file="$out/Midroid-${version}.version-code.txt"
+          printf '%s\n' "${{ steps.version.outputs.version_code }}" > "$version_code_file"
+
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" | tee "$cert"
+          actual_cert="$(awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print tolower($2); exit}' "$cert")"
+          if [[ "$actual_cert" != "$EXPECTED_RELEASE_CERT_SHA256" ]]; then
+            echo "Release certificate mismatch. Refusing to publish." >&2
+            echo "Expected: $EXPECTED_RELEASE_CERT_SHA256" >&2
+            echo "Actual:   ${actual_cert:-missing}" >&2
+            exit 1
+          fi
+
+          (
+            cd "$out"
+            sha256sum "$(basename "$apk")"
+          ) | tee "$sha"
+
+          echo "apk=$apk" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "cert=$cert" >> "$GITHUB_OUTPUT"
+          echo "version_code=$version_code_file" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable release build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Midroid-${{ steps.version.outputs.version }}-release-assets
+          path: |
+            ${{ steps.assets.outputs.apk }}
+            ${{ steps.assets.outputs.sha }}
+            ${{ steps.assets.outputs.cert }}
+            ${{ steps.assets.outputs.version_code }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          flags=(--verify-tag --generate-notes --title "Midroid ${version}")
+          if [[ "$version" == *-* ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            "${{ steps.assets.outputs.apk }}" \
+            "${{ steps.assets.outputs.sha }}" \
+            "${{ steps.assets.outputs.cert }}" \
+            "${{ steps.assets.outputs.version_code }}" \
+            "${flags[@]}"
