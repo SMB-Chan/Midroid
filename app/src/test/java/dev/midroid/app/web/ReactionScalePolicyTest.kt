@@ -1,38 +1,40 @@
 package dev.midroid.app.web
 
+import dev.midroid.app.config.ReactionScale
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ReactionScalePolicyTest {
     @Test
-    fun keepsDefaultReactionsAtComfortableTouchTarget() {
+    fun standardUsesComfortableTouchTarget() {
         assertEquals(
             ReactionScaleMetrics(52, 200, 8),
-            ReactionScalePolicy.forTextZoom(100),
+            ReactionScalePolicy.forScale(ReactionScale.STANDARD),
         )
     }
 
     @Test
-    fun scalesReactionsWithLargerTextModes() {
+    fun largeAndExtraLargeAreClearlySeparated() {
         assertEquals(
-            ReactionScaleMetrics(55, 210, 8),
-            ReactionScalePolicy.forTextZoom(115),
+            ReactionScaleMetrics(60, 230, 10),
+            ReactionScalePolicy.forScale(ReactionScale.LARGE),
         )
         assertEquals(
-            ReactionScaleMetrics(58, 220, 9),
-            ReactionScalePolicy.forTextZoom(130),
-        )
-        assertEquals(
-            ReactionScaleMetrics(62, 230, 10),
-            ReactionScalePolicy.forTextZoom(145),
+            ReactionScaleMetrics(68, 260, 12),
+            ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE),
         )
     }
 
     @Test
-    fun autoZoomBetweenStepsUsesNextComfortableBucket() {
-        assertEquals(
-            ReactionScaleMetrics(55, 210, 8),
-            ReactionScalePolicy.forTextZoom(117),
-        )
+    fun missingPreferenceDefaultsToLarge() {
+        assertEquals(ReactionScale.LARGE, ReactionScale.fromKey(null))
+        assertEquals(ReactionScale.LARGE, ReactionScale.fromKey("unknown"))
+    }
+
+    @Test
+    fun persistedKeysResolveToExpectedModes() {
+        assertEquals(ReactionScale.STANDARD, ReactionScale.fromKey("standard"))
+        assertEquals(ReactionScale.LARGE, ReactionScale.fromKey("large"))
+        assertEquals(ReactionScale.EXTRA_LARGE, ReactionScale.fromKey("extra_large"))
     }
 }
