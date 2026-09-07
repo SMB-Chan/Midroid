@@ -6,9 +6,6 @@ import dev.midroid.app.config.ReactionScale
 class MisskeyUiTuner {
     fun applyReactionScale(webView: WebView, scale: ReactionScale) {
         val metrics = ReactionScalePolicy.forScale(scale)
-        // Structural selector for a notification row. Interpolated by Kotlin (contains no
-        // `$`), so JS below can reference it without relying on generated CSS-module names.
-        val notifRoot = "div:has(> div > header:has(time))"
         webView.evaluateJavascript(
             """
             (() => {
@@ -21,12 +18,105 @@ class MisskeyUiTuner {
               }
 
               const supportsHas = !!window.CSS?.supports?.('selector(:has(*))');
-              // Keep the legacy generated class as a compatibility fallback, but do not depend
-              // on it exclusively. The structural selectors remain dormant until a matching
-              // picker is present, so Misskey updates fail closed instead of reshaping the page.
               const pickerRoot = supportsHas
                 ? ':is(.omfetrab, [role="dialog"]:has(button._button.item), [class*="emoji"]:has(button._button.item))'
                 : '.omfetrab';
+
+              const markReactionGraphic = (container, marker) => {
+                if (!(container instanceof HTMLElement)) return null;
+                const graphic = container.querySelector(
+                  '[style*="object-fit: contain"], img[alt^=":"], img[src*="/emoji/"], img[src*="emoji"]'
+                );
+                if (graphic instanceof HTMLElement) {
+                  graphic.dataset[marker] = '1';
+                  return graphic;
+                }
+                return null;
+              };
+
+              const markNotifications = () => {
+                document.querySelectorAll('header time').forEach((time) => {
+                  const header = time.closest('header');
+                  if (!(header instanceof HTMLElement)) return;
+
+                  const tail = header.parentElement;
+                  const root = tail?.parentElement;
+                  if (!(tail instanceof HTMLElement) || !(root instanceof HTMLElement)) return;
+                  if (root.children.length !== 2) return;
+                  if (root.lastElementChild !== tail || tail.firstElementChild !== header) return;
+
+                  const head = root.firstElementChild;
+                  if (!(head instanceof HTMLElement)) return;
+                  if (head.children.length < 1 || head.children.length > 2) return;
+
+                  root.dataset.midroidNotification = '1';
+                  head.dataset.midroidNotificationHead = '1';
+                  tail.dataset.midroidNotificationTail = '1';
+
+                  const icon = head.firstElementChild;
+                  if (icon instanceof HTMLElement) {
+                    icon.dataset.midroidNotificationIcon = '1';
+                    const groupGlyph = icon.querySelector('i.ti-plus, i.ti-heart, i.ti-repeat');
+                    if (groupGlyph instanceof HTMLElement) {
+                      groupGlyph.dataset.midroidNotificationGroupGlyph = '1';
+                    }
+                  }
+
+                  const subIcon = head.children.item(1);
+                  if (subIcon instanceof HTMLElement) {
+                    subIcon.dataset.midroidNotificationSubicon = '1';
+                    const reactionGraphic = markReactionGraphic(
+                      subIcon,
+                      'midroidNotificationReactionGraphic',
+                    );
+                    if (reactionGraphic) {
+                      head.dataset.midroidNotificationReactionHead = '1';
+                      subIcon.dataset.midroidNotificationReaction = '1';
+                    } else {
+                      delete subIcon.dataset.midroidNotificationReaction;
+                    }
+                  }
+
+                  tail.querySelectorAll('div').forEach((item) => {
+                    if (!(item instanceof HTMLElement) || item.children.length !== 2) return;
+                    const avatar = item.children.item(0);
+                    const reaction = item.children.item(1);
+                    if (!(avatar instanceof HTMLElement) || !(reaction instanceof HTMLElement)) return;
+
+                    const avatarImage = avatar.matches('img') ? avatar : avatar.querySelector('img');
+                    if (!(avatarImage instanceof HTMLElement)) return;
+
+                    const reactionGraphic = markReactionGraphic(
+                      reaction,
+                      'midroidGroupedReactionGraphic',
+                    );
+                    if (!reactionGraphic) return;
+
+                    item.dataset.midroidGroupedReactionItem = '1';
+                    avatar.dataset.midroidGroupedReactionAvatar = '1';
+                    reaction.dataset.midroidGroupedReaction = '1';
+                  });
+                });
+              };
+
+              window.__midroidNotificationScan = markNotifications;
+              if (!window.__midroidNotificationObserver) {
+                let scanScheduled = false;
+                const scheduleScan = () => {
+                  if (scanScheduled) return;
+                  scanScheduled = true;
+                  window.requestAnimationFrame(() => {
+                    scanScheduled = false;
+                    window.__midroidNotificationScan?.();
+                  });
+                };
+                window.__midroidNotificationObserver = new MutationObserver(scheduleScan);
+                window.__midroidNotificationObserver.observe(document.documentElement, {
+                  childList: true,
+                  subtree: true,
+                });
+              }
+              markNotifications();
 
               const hasRules = supportsHas ? `
                 button._button:has(> [style*="pointer-events: none"] + span) {
@@ -39,9 +129,6 @@ class MisskeyUiTuner {
                   align-items: center !important;
                 }
 
-                /* Timeline reactions are height-driven. A fixed square made wide custom emoji
-                   shrink until their text was tiny. Preserve their intrinsic aspect ratio and
-                   only cap exceptionally wide artwork. */
                 button._button:has(> [style*="pointer-events: none"] + span)
                   > [style*="pointer-events: none"] {
                   display: inline-block !important;
@@ -65,48 +152,38 @@ class MisskeyUiTuner {
                 }
               ` : '';
 
-              // Notification list readability. MkNotification always renders a head followed by
-              // a tail whose first child is a header. The head contains the primary icon/avatar
-              // followed by a sub-icon. Reaction sub-icons are moved below the avatar and wide
-              // reaction artwork keeps its aspect ratio. Grouped reaction items use the same
-              // vertical non-overlapping layout. On WebViews without :has() support we fail
-              // closed and leave Misskey's stock geometry untouched.
-              const notificationReadability = supportsHas ? `
-                ${notifRoot} {
+              const notificationReadability = `
+                [data-midroid-notification="1"] {
                   font-size: ${metrics.notificationFontPercent}% !important;
                   align-items: flex-start !important;
+                  overflow: visible !important;
                 }
 
-                ${notifRoot} > :first-child {
+                [data-midroid-notification-head="1"] {
                   width: ${metrics.notificationAvatarCssPx}px !important;
                   min-width: ${metrics.notificationAvatarCssPx}px !important;
                   max-width: ${metrics.notificationAvatarCssPx}px !important;
                   height: ${metrics.notificationAvatarCssPx}px !important;
                   min-height: ${metrics.notificationAvatarCssPx}px !important;
                   max-height: ${metrics.notificationAvatarCssPx}px !important;
+                  overflow: visible !important;
                 }
 
-                ${notifRoot} > :first-child > :first-child {
+                [data-midroid-notification-icon="1"] {
                   width: 100% !important;
-                  height: 100% !important;
+                  min-width: 100% !important;
                   max-width: 100% !important;
+                  height: 100% !important;
+                  min-height: 100% !important;
                   max-height: 100% !important;
                 }
 
-                /* Grouped + / heart / renote header symbols use a fixed 15px glyph upstream.
-                   Scale the symbol with the Midroid mode and let the colored circle fill head. */
-                ${notifRoot} > :first-child > div:first-child {
-                  width: 100% !important;
-                  height: 100% !important;
-                  max-width: 100% !important;
-                  max-height: 100% !important;
+                [data-midroid-notification-group-glyph="1"] {
                   font-size: ${metrics.notificationGroupSymbolCssPx}px !important;
+                  line-height: 1 !important;
                 }
 
-                /* Normal status sub-icons (login, token, renote, reply, etc.) are 20px upstream.
-                   Enlarge them independently from reaction artwork. Empty sub-icons remain hidden
-                   because Misskey's :empty rule still applies. */
-                ${notifRoot} > :first-child > :nth-child(2) {
+                [data-midroid-notification-subicon="1"]:not([data-midroid-notification-reaction="1"]) {
                   width: ${metrics.notificationStatusIconCssPx}px !important;
                   min-width: ${metrics.notificationStatusIconCssPx}px !important;
                   max-width: ${metrics.notificationStatusIconCssPx}px !important;
@@ -114,18 +191,13 @@ class MisskeyUiTuner {
                   min-height: ${metrics.notificationStatusIconCssPx}px !important;
                   max-height: ${metrics.notificationStatusIconCssPx}px !important;
                   line-height: ${metrics.notificationStatusIconCssPx}px !important;
-                  right: -3px !important;
-                  bottom: -3px !important;
+                  right: -4px !important;
+                  bottom: -4px !important;
                   font-size: ${metrics.notificationStatusIconCssPx / 2}px !important;
                   box-shadow: 0 0 0 2px var(--MI_THEME-panel) !important;
                 }
 
-                /* A reaction notification is the head whose second child contains MkReactionIcon.
-                   Stack reaction below avatar so even a wide emoji never covers the face or steals
-                   horizontal space from the notification text more than its own natural width. */
-                ${notifRoot} > :first-child:has(
-                  > :nth-child(2) > [style*="object-fit: contain"]
-                ) {
+                [data-midroid-notification-head="1"][data-midroid-notification-reaction-head="1"] {
                   display: inline-flex !important;
                   flex-direction: column !important;
                   align-items: center !important;
@@ -139,9 +211,8 @@ class MisskeyUiTuner {
                   overflow: visible !important;
                 }
 
-                ${notifRoot} > :first-child:has(
-                  > :nth-child(2) > [style*="object-fit: contain"]
-                ) > :first-child {
+                [data-midroid-notification-head="1"][data-midroid-notification-reaction-head="1"]
+                  > [data-midroid-notification-icon="1"] {
                   flex: 0 0 ${metrics.notificationAvatarCssPx}px !important;
                   width: ${metrics.notificationAvatarCssPx}px !important;
                   min-width: ${metrics.notificationAvatarCssPx}px !important;
@@ -151,9 +222,7 @@ class MisskeyUiTuner {
                   max-height: ${metrics.notificationAvatarCssPx}px !important;
                 }
 
-                ${notifRoot} > :first-child:has(
-                  > :nth-child(2) > [style*="object-fit: contain"]
-                ) > :nth-child(2) {
+                [data-midroid-notification-reaction="1"] {
                   position: static !important;
                   inset: auto !important;
                   display: inline-flex !important;
@@ -175,9 +244,7 @@ class MisskeyUiTuner {
                   overflow: visible !important;
                 }
 
-                ${notifRoot} > :first-child:has(
-                  > :nth-child(2) > [style*="object-fit: contain"]
-                ) > :nth-child(2) > [style*="object-fit: contain"] {
+                [data-midroid-notification-reaction-graphic="1"] {
                   display: block !important;
                   width: auto !important;
                   min-width: 0 !important;
@@ -190,10 +257,7 @@ class MisskeyUiTuner {
                   object-fit: contain !important;
                 }
 
-                /* reaction:grouped item = first child avatar + second child reaction wrapper.
-                   Select by child order instead of generated module class names. */
-                ${notifRoot} > div:last-child
-                  div:has(> :nth-child(2) > [style*="object-fit: contain"]) {
+                [data-midroid-grouped-reaction-item="1"] {
                   display: inline-flex !important;
                   flex-direction: column !important;
                   align-items: center !important;
@@ -206,14 +270,12 @@ class MisskeyUiTuner {
                   height: auto !important;
                   min-height: ${metrics.notificationGroupAvatarCssPx + metrics.notificationReactionGapCssPx + metrics.notificationReactionCssPx}px !important;
                   max-height: none !important;
-                  margin-top: 8px !important;
+                  margin-top: 10px !important;
                   margin-right: 12px !important;
                   overflow: visible !important;
                 }
 
-                ${notifRoot} > div:last-child
-                  div:has(> :nth-child(2) > [style*="object-fit: contain"])
-                  > :first-child {
+                [data-midroid-grouped-reaction-avatar="1"] {
                   flex: 0 0 ${metrics.notificationGroupAvatarCssPx}px !important;
                   width: ${metrics.notificationGroupAvatarCssPx}px !important;
                   min-width: ${metrics.notificationGroupAvatarCssPx}px !important;
@@ -223,9 +285,7 @@ class MisskeyUiTuner {
                   max-height: ${metrics.notificationGroupAvatarCssPx}px !important;
                 }
 
-                ${notifRoot} > div:last-child
-                  div:has(> :nth-child(2) > [style*="object-fit: contain"])
-                  > :nth-child(2) {
+                [data-midroid-grouped-reaction="1"] {
                   position: static !important;
                   inset: auto !important;
                   display: inline-flex !important;
@@ -246,9 +306,7 @@ class MisskeyUiTuner {
                   overflow: visible !important;
                 }
 
-                ${notifRoot} > div:last-child
-                  div:has(> :nth-child(2) > [style*="object-fit: contain"])
-                  > :nth-child(2) > [style*="object-fit: contain"] {
+                [data-midroid-grouped-reaction-graphic="1"] {
                   display: block !important;
                   width: auto !important;
                   min-width: 0 !important;
@@ -260,7 +318,7 @@ class MisskeyUiTuner {
                   line-height: 1 !important;
                   object-fit: contain !important;
                 }
-              ` : '';
+              `;
 
               const root = pickerRoot;
               const gridRule = supportsHas
