@@ -390,6 +390,9 @@ class MainActivity : ComponentActivity() {
 
         applyTextScale(created)
         powerController.configure(this, created, currentMode)
+        mediaFallbackBridge.attach(created, instance) { request ->
+            playNativeAudio(request, created)
+        }
 
         val externalNavigator = ExternalNavigator(this)
         created.webViewClient = MidroidWebViewClient(
@@ -510,12 +513,21 @@ class MainActivity : ComponentActivity() {
         sourceWebView.settings.userAgentString
             ?.takeIf { it.isNotBlank() }
             ?.let { headers["User-Agent"] = it }
-        WebViewFactory.cookieManagerFor(sourceWebView).getCookie(request.sourceUrl)
-            ?.takeIf { it.isNotBlank() }
-            ?.let { headers["Cookie"] = it }
+
+        val instance = currentInstance
+        val sameOriginSource = instance?.owns(request.sourceUrl) == true
+        if (sameOriginSource) {
+            WebViewFactory.cookieManagerFor(sourceWebView).getCookie(request.sourceUrl)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { headers["Cookie"] = it }
+        }
 
         val referer = navigationState.currentUrl ?: lastKnownUrl
-        if (!referer.isNullOrBlank() && Uri.parse(referer).scheme.equals("https", ignoreCase = true)) {
+        if (
+            sameOriginSource &&
+            !referer.isNullOrBlank() &&
+            instance?.owns(referer) == true
+        ) {
             headers["Referer"] = referer
         }
 
