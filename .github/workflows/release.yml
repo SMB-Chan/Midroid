@@ -1,0 +1,138 @@
+name: Public APK Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MIDROID_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate release tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Unsupported release tag: $tag" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "MIDROID_VERSION_NAME=$version" >> "$GITHUB_ENV"
+
+      - name: Require stable release signing
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.MIDROID_SIGNING_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.MIDROID_SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MIDROID_SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MIDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEYSTORE_B64" || -z "$STORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
+            echo "Stable Midroid signing secrets are incomplete. Refusing to publish." >&2
+            exit 1
+          fi
+          keystore="$RUNNER_TEMP/midroid-update.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$keystore"
+          chmod 600 "$keystore"
+          {
+            echo "MIDROID_SIGNING_STORE_FILE=$keystore"
+            echo "MIDROID_SIGNING_STORE_PASSWORD=$STORE_PASSWORD"
+            echo "MIDROID_SIGNING_KEY_ALIAS=$KEY_ALIAS"
+            echo "MIDROID_SIGNING_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+          log-accepted-android-sdk-licenses: false
+
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 9.6.0
+
+      - name: Validate release tooling
+        run: |
+          bash -n tools/benchmark_android.sh
+          bash -n tools/bootstrap_update_signing.sh
+
+      - name: Verify and build release
+        run: gradle --stacktrace lint testDebugUnitTest assembleRelease
+
+      - name: Verify release APK and prepare assets
+        id: assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          source_apk="app/build/outputs/apk/release/app-release.apk"
+          if [[ ! -f "$source_apk" ]]; then
+            echo "Signed release APK was not produced: $source_apk" >&2
+            exit 1
+          fi
+
+          out="$RUNNER_TEMP/midroid-release"
+          mkdir -p "$out"
+          apk="$out/Midroid-${version}.apk"
+          cp "$source_apk" "$apk"
+          sha="$out/Midroid-${version}.apk.sha256"
+          cert="$out/Midroid-${version}.signing.txt"
+
+          sha256sum "$apk" | tee "$sha"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" | tee "$cert"
+
+          echo "apk=$apk" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "cert=$cert" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable release build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Midroid-${{ steps.version.outputs.version }}-release-assets
+          path: |
+            ${{ steps.assets.outputs.apk }}
+            ${{ steps.assets.outputs.sha }}
+            ${{ steps.assets.outputs.cert }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          flags=(--verify-tag --generate-notes --title "Midroid ${version}")
+          if [[ "$version" == *-* ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            "${{ steps.assets.outputs.apk }}" \
+            "${{ steps.assets.outputs.sha }}" \
+            "${{ steps.assets.outputs.cert }}" \
+            "${flags[@]}"
