@@ -6,6 +6,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import dev.midroid.app.config.InstanceConfig
+import dev.midroid.app.media.NativeAudioRequest
 
 class MidroidWebViewClient(
     private val instance: InstanceConfig,
@@ -14,13 +15,21 @@ class MidroidWebViewClient(
     private val onMainFrameCommitted: (String) -> Unit,
     private val onHistoryChanged: (String) -> Unit,
     private val onPageReady: (WebView, String) -> Unit,
+    private val onNativeAudioRequested: (NativeAudioRequest) -> Unit,
     private val onRendererGone: (WebView, RenderProcessGoneDetail) -> Unit,
 ) : WebViewClient() {
 
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-        if (!request.isForMainFrame) return false
         val uri = request.url
         val scheme = uri.scheme?.lowercase()
+
+        if (scheme == NativeAudioRequest.SCHEME) {
+            NativeAudioRequest.parse(uri.toString())?.let(onNativeAudioRequested)
+            // Always consume the private Midroid scheme, including malformed requests.
+            return true
+        }
+
+        if (!request.isForMainFrame) return false
         if (scheme == "https" && instance.owns(uri.toString())) {
             return false
         }
