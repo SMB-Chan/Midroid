@@ -42,16 +42,18 @@ class MisskeyUiTuner {
                   const tail = header.parentElement;
                   const root = tail?.parentElement;
                   if (!(tail instanceof HTMLElement) || !(root instanceof HTMLElement)) return;
-                  if (root.children.length !== 2) return;
+                  if (root.tagName !== 'DIV' || root.children.length !== 2) return;
                   if (root.lastElementChild !== tail || tail.firstElementChild !== header) return;
 
                   const head = root.firstElementChild;
-                  if (!(head instanceof HTMLElement)) return;
-                  if (head.children.length < 1 || head.children.length > 2) return;
+                  if (!(head instanceof HTMLElement) || head.children.length !== 2) return;
+                  const subIcon = head.children.item(1);
+                  if (!(subIcon instanceof HTMLDivElement)) return;
 
                   root.dataset.midroidNotification = '1';
                   head.dataset.midroidNotificationHead = '1';
                   tail.dataset.midroidNotificationTail = '1';
+                  subIcon.dataset.midroidNotificationSubicon = '1';
 
                   const icon = head.firstElementChild;
                   if (icon instanceof HTMLElement) {
@@ -62,19 +64,16 @@ class MisskeyUiTuner {
                     }
                   }
 
-                  const subIcon = head.children.item(1);
-                  if (subIcon instanceof HTMLElement) {
-                    subIcon.dataset.midroidNotificationSubicon = '1';
-                    const reactionGraphic = markReactionGraphic(
-                      subIcon,
-                      'midroidNotificationReactionGraphic',
-                    );
-                    if (reactionGraphic) {
-                      head.dataset.midroidNotificationReactionHead = '1';
-                      subIcon.dataset.midroidNotificationReaction = '1';
-                    } else {
-                      delete subIcon.dataset.midroidNotificationReaction;
-                    }
+                  const reactionGraphic = markReactionGraphic(
+                    subIcon,
+                    'midroidNotificationReactionGraphic',
+                  );
+                  if (reactionGraphic) {
+                    head.dataset.midroidNotificationReactionHead = '1';
+                    subIcon.dataset.midroidNotificationReaction = '1';
+                  } else {
+                    delete head.dataset.midroidNotificationReactionHead;
+                    delete subIcon.dataset.midroidNotificationReaction;
                   }
 
                   tail.querySelectorAll('div').forEach((item) => {
@@ -86,11 +85,11 @@ class MisskeyUiTuner {
                     const avatarImage = avatar.matches('img') ? avatar : avatar.querySelector('img');
                     if (!(avatarImage instanceof HTMLElement)) return;
 
-                    const reactionGraphic = markReactionGraphic(
+                    const groupedReactionGraphic = markReactionGraphic(
                       reaction,
                       'midroidGroupedReactionGraphic',
                     );
-                    if (!reactionGraphic) return;
+                    if (!groupedReactionGraphic) return;
 
                     item.dataset.midroidGroupedReactionItem = '1';
                     avatar.dataset.midroidGroupedReactionAvatar = '1';
