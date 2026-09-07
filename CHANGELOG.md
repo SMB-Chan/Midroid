@@ -6,6 +6,12 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 ## [Unreleased]
 
+No unreleased user-facing changes are currently recorded.
+
+## [0.1.3] - 2026-09-08
+
+Patch release improving reaction visibility and browser content area.
+
 ### Fixed
 
 - Preserve the intrinsic aspect ratio of wide timeline reaction emoji so long horizontal artwork scales by height instead of being squeezed into a square and appearing tiny.
