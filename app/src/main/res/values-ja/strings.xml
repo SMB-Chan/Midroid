@@ -12,6 +12,7 @@
     <string name="add_account_description">Misskeyインスタンスを入力してください。Midroidは独立したWebView Profileで開くため、別アカウントとしてログインできます。</string>
     <string name="multi_profile_unsupported">このAndroid System WebViewは分離された複数アカウントProfileに対応していません。Android System WebViewまたはChromeを更新してください。</string>
     <string name="account_added">分離されたアカウントProfileを追加しました。このセッションでMisskeyへログインしてください。</string>
+    <string name="account_profile_recovered">保存されていた分離アカウントは現在のWebViewプロバイダーで利用できません。Midroidは安全に既定のアカウントへ切り替えました。</string>
     <string name="cancel">キャンセル</string>
     <string name="power_mode">動作モード</string>
     <string name="power_eco_title">省電力</string>
@@ -43,6 +44,10 @@
     <string name="open_misskey">Misskeyを開く</string>
     <string name="webview_provider_unavailable">WebViewプロバイダー：利用できません</string>
     <string name="webview_provider">WebViewプロバイダー：%1$s %2$s</string>
+    <string name="webview_recovery_title">WebViewの復旧</string>
+    <string name="webview_recovery_message">選択されたWebView Profileを開けませんでした。%1$s 再試行、アカウント切り替え、または設定画面を開くことができます。</string>
+    <string name="webview_recovery_provider_error">Android System WebViewプロバイダーがこのProfileを作成できませんでした。</string>
+    <string name="retry">再試行</string>
     <string name="unknown">不明</string>
     <string name="copy_diagnostics">診断情報をコピー</string>
     <string name="privacy_note">Midroidはアカウント情報とWebViewのログイン状態を端末内に保存します。追加アカウントはそれぞれ独立したWebView Profileを使用し、CookieやWebStorageを分離します。HTTPSが必須で、外部リンクは既定のブラウザで開きます。</string>
@@ -66,10 +71,4 @@
     <string name="native_audio_fallback">現在のMisskey音声をAndroidで再生</string>
     <string name="native_audio_not_found">この画面では、まだ再生可能なMisskey音声URLを検出できません。</string>
     <string name="close">閉じる</string>
-    <!-- Temporary English fallbacks; localized before public release. -->
-<string name="account_profile_recovered">The saved isolated account is not supported by this WebView provider. Midroid switched safely to the default account.</string>
-<string name="webview_recovery_title">WebView recovery</string>
-<string name="webview_recovery_message">Midroid could not open the selected WebView profile. %1$s You can retry, switch accounts, or open settings.</string>
-<string name="webview_recovery_provider_error">The Android System WebView provider failed to create this profile.</string>
-<string name="retry">Retry</string>
 </resources>
