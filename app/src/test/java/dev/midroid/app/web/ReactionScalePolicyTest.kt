@@ -8,7 +8,7 @@ class ReactionScalePolicyTest {
     @Test
     fun standardUsesComfortableTouchTarget() {
         assertEquals(
-            ReactionScaleMetrics(52, 200, 8, 36, 48, 32, 24),
+            ReactionScaleMetrics(52, 200, 8, 36, 48, 32, 32, 44, 44, 6, 100),
             ReactionScalePolicy.forScale(ReactionScale.STANDARD),
         )
     }
@@ -16,11 +16,11 @@ class ReactionScalePolicyTest {
     @Test
     fun largeAndExtraLargeAreClearlySeparated() {
         assertEquals(
-            ReactionScaleMetrics(60, 230, 10, 44, 56, 40, 30),
+            ReactionScaleMetrics(60, 230, 10, 44, 56, 40, 40, 50, 50, 8, 108),
             ReactionScalePolicy.forScale(ReactionScale.LARGE),
         )
         assertEquals(
-            ReactionScaleMetrics(68, 260, 12, 52, 64, 48, 36),
+            ReactionScaleMetrics(68, 260, 12, 52, 64, 48, 48, 58, 58, 8, 116),
             ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE),
         )
     }
@@ -37,8 +37,36 @@ class ReactionScalePolicyTest {
         assertEquals(true, large.deckCellCssPx < extraLarge.deckCellCssPx)
         assertEquals(true, standard.deckEmojiCssPx < large.deckEmojiCssPx)
         assertEquals(true, large.deckEmojiCssPx < extraLarge.deckEmojiCssPx)
-        assertEquals(true, standard.notificationEmojiCssPx < large.notificationEmojiCssPx)
-        assertEquals(true, large.notificationEmojiCssPx < extraLarge.notificationEmojiCssPx)
+        assertEquals(true, standard.notificationReactionCssPx < large.notificationReactionCssPx)
+        assertEquals(true, large.notificationReactionCssPx < extraLarge.notificationReactionCssPx)
+        assertEquals(true, standard.notificationAvatarCssPx < large.notificationAvatarCssPx)
+        assertEquals(true, large.notificationAvatarCssPx < extraLarge.notificationAvatarCssPx)
+        assertEquals(true, standard.notificationGroupAvatarCssPx < large.notificationGroupAvatarCssPx)
+        assertEquals(true, large.notificationGroupAvatarCssPx < extraLarge.notificationGroupAvatarCssPx)
+        assertEquals(true, standard.notificationFontPercent < large.notificationFontPercent)
+        assertEquals(true, large.notificationFontPercent < extraLarge.notificationFontPercent)
+    }
+
+    @Test
+    fun notificationReactionLaneKeepsAvatarAndReactionSeparate() {
+        ReactionScale.entries.forEach { scale ->
+            val metrics = ReactionScalePolicy.forScale(scale)
+            assertEquals(
+                metrics.notificationAvatarCssPx +
+                    metrics.notificationReactionGapCssPx +
+                    metrics.notificationReactionCssPx,
+                metrics.notificationHeadLaneCssPx,
+            )
+            assertEquals(
+                metrics.notificationGroupAvatarCssPx +
+                    metrics.notificationReactionGapCssPx +
+                    metrics.notificationReactionCssPx,
+                metrics.notificationGroupLaneCssPx,
+            )
+            assertEquals(true, metrics.notificationReactionGapCssPx > 0)
+            assertEquals(true, metrics.notificationReactionCssPx < metrics.notificationAvatarCssPx)
+        }
+        assertEquals(true, ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE).notificationReactionCssPx >= 48)
     }
 
     @Test

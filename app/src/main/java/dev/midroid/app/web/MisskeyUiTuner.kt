@@ -6,6 +6,9 @@ import dev.midroid.app.config.ReactionScale
 class MisskeyUiTuner {
     fun applyReactionScale(webView: WebView, scale: ReactionScale) {
         val metrics = ReactionScalePolicy.forScale(scale)
+        // Structural selector for a notification row. Interpolated by Kotlin (contains no
+        // `$`), so JS below can reference it via `${'$'}{notifRoot}` without a JS variable.
+        val notifRoot = "div:has(> div > header:has(time))"
         webView.evaluateJavascript(
             """
             (() => {
@@ -59,33 +62,169 @@ class MisskeyUiTuner {
                   font-size: 0.65em !important;
                   margin-left: 6px !important;
                 }
-
-                :is(div, span):has(> [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]) {
-                  width: ${metrics.notificationEmojiCssPx}px !important;
-                  min-width: ${metrics.notificationEmojiCssPx}px !important;
-                  height: ${metrics.notificationEmojiCssPx}px !important;
-                  min-height: ${metrics.notificationEmojiCssPx}px !important;
-                  line-height: ${metrics.notificationEmojiCssPx}px !important;
-                  overflow: visible !important;
-                }
               ` : '';
 
-              const notificationFallback = `
-                [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"] {
-                  display: inline-flex !important;
+              // Notification list readability. Misskey uses generated CSS-module class names,
+              // so these rules key off the stable MkNotification structure. Reaction badges are
+              // deliberately removed from their original absolute overlay and placed in a
+              // dedicated lane beside the avatar. This lets the reaction grow without covering
+              // the user's face. On WebViews without :has() support we fail closed and leave the
+              // stock Misskey notification geometry untouched.
+              const notificationReadability = supportsHas ? `
+                ${notifRoot} {
+                  font-size: ${metrics.notificationFontPercent}% !important;
+                  align-items: flex-start !important;
+                }
+
+                ${notifRoot} > :first-child {
+                  width: ${metrics.notificationAvatarCssPx}px !important;
+                  min-width: ${metrics.notificationAvatarCssPx}px !important;
+                  height: ${metrics.notificationAvatarCssPx}px !important;
+                  min-height: ${metrics.notificationAvatarCssPx}px !important;
+                }
+
+                ${notifRoot} > :first-child:has(
+                  > :is(div, span):has(
+                    > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]
+                  )
+                ) {
+                  display: flex !important;
+                  flex-direction: row !important;
                   align-items: center !important;
-                  justify-content: center !important;
-                  width: ${metrics.notificationEmojiCssPx}px !important;
-                  min-width: ${metrics.notificationEmojiCssPx}px !important;
-                  max-width: ${metrics.notificationEmojiCssPx}px !important;
-                  height: ${metrics.notificationEmojiCssPx}px !important;
-                  min-height: ${metrics.notificationEmojiCssPx}px !important;
-                  max-height: ${metrics.notificationEmojiCssPx}px !important;
-                  font-size: ${metrics.notificationEmojiCssPx}px !important;
+                  width: ${metrics.notificationHeadLaneCssPx}px !important;
+                  min-width: ${metrics.notificationHeadLaneCssPx}px !important;
+                  max-width: ${metrics.notificationHeadLaneCssPx}px !important;
+                  height: ${metrics.notificationAvatarCssPx}px !important;
+                  min-height: ${metrics.notificationAvatarCssPx}px !important;
+                  margin-right: 10px !important;
+                }
+
+                ${notifRoot} > :first-child:has(
+                  > :is(div, span):has(
+                    > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]
+                  )
+                ) > :first-child {
+                  flex: 0 0 ${metrics.notificationAvatarCssPx}px !important;
+                  width: ${metrics.notificationAvatarCssPx}px !important;
+                  min-width: ${metrics.notificationAvatarCssPx}px !important;
+                  max-width: ${metrics.notificationAvatarCssPx}px !important;
+                  height: ${metrics.notificationAvatarCssPx}px !important;
+                  min-height: ${metrics.notificationAvatarCssPx}px !important;
+                  max-height: ${metrics.notificationAvatarCssPx}px !important;
+                }
+
+                ${notifRoot} > :first-child
+                  > :is(div, span):has(
+                    > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]
+                  ) {
+                  position: static !important;
+                  inset: auto !important;
+                  flex: 0 0 ${metrics.notificationReactionCssPx}px !important;
+                  width: ${metrics.notificationReactionCssPx}px !important;
+                  min-width: ${metrics.notificationReactionCssPx}px !important;
+                  max-width: ${metrics.notificationReactionCssPx}px !important;
+                  height: ${metrics.notificationReactionCssPx}px !important;
+                  min-height: ${metrics.notificationReactionCssPx}px !important;
+                  max-height: ${metrics.notificationReactionCssPx}px !important;
+                  margin: 0 0 0 ${metrics.notificationReactionGapCssPx}px !important;
+                  padding: 0 !important;
+                  line-height: ${metrics.notificationReactionCssPx}px !important;
+                  border-radius: 0 !important;
+                  background: transparent !important;
+                  box-shadow: none !important;
+                  overflow: visible !important;
+                }
+
+                ${notifRoot} > :first-child
+                  > :is(div, span):has(
+                    > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]
+                  )
+                  > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"] {
+                  display: block !important;
+                  width: 100% !important;
+                  min-width: 100% !important;
+                  max-width: 100% !important;
+                  height: 100% !important;
+                  min-height: 100% !important;
+                  max-height: 100% !important;
+                  font-size: ${metrics.notificationReactionCssPx}px !important;
                   line-height: 1 !important;
                   object-fit: contain !important;
                 }
-              `;
+
+                ${notifRoot} > div:last-child
+                  div:has(
+                    > div > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]
+                  ) {
+                  display: inline-flex !important;
+                  align-items: center !important;
+                  vertical-align: top !important;
+                  width: ${metrics.notificationGroupLaneCssPx}px !important;
+                  min-width: ${metrics.notificationGroupLaneCssPx}px !important;
+                  max-width: ${metrics.notificationGroupLaneCssPx}px !important;
+                  height: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  min-height: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  max-height: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  overflow: visible !important;
+                }
+
+                ${notifRoot} > div:last-child
+                  div:has(
+                    > div > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]
+                  ) > :first-child {
+                  flex: 0 0 ${metrics.notificationGroupAvatarCssPx}px !important;
+                  width: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  min-width: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  max-width: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  height: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  min-height: ${metrics.notificationGroupAvatarCssPx}px !important;
+                  max-height: ${metrics.notificationGroupAvatarCssPx}px !important;
+                }
+
+                ${notifRoot} > div:last-child
+                  div:has(
+                    > div > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]
+                  )
+                  > div:has(
+                    > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]
+                  ) {
+                  position: static !important;
+                  inset: auto !important;
+                  flex: 0 0 ${metrics.notificationReactionCssPx}px !important;
+                  width: ${metrics.notificationReactionCssPx}px !important;
+                  min-width: ${metrics.notificationReactionCssPx}px !important;
+                  max-width: ${metrics.notificationReactionCssPx}px !important;
+                  height: ${metrics.notificationReactionCssPx}px !important;
+                  min-height: ${metrics.notificationReactionCssPx}px !important;
+                  max-height: ${metrics.notificationReactionCssPx}px !important;
+                  margin: 0 0 0 ${metrics.notificationReactionGapCssPx}px !important;
+                  padding: 0 !important;
+                  border-radius: 0 !important;
+                  background: transparent !important;
+                  box-shadow: none !important;
+                  overflow: visible !important;
+                }
+
+                ${notifRoot} > div:last-child
+                  div:has(
+                    > div > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]
+                  )
+                  > div:has(
+                    > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]
+                  )
+                  > [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"] {
+                  display: block !important;
+                  width: 100% !important;
+                  min-width: 100% !important;
+                  max-width: 100% !important;
+                  height: 100% !important;
+                  min-height: 100% !important;
+                  max-height: 100% !important;
+                  font-size: ${metrics.notificationReactionCssPx}px !important;
+                  line-height: 1 !important;
+                  object-fit: contain !important;
+                }
+              ` : '';
 
               const root = pickerRoot;
               const gridRule = supportsHas
@@ -135,7 +274,7 @@ class MisskeyUiTuner {
                   object-fit: contain !important;
                 }`;
 
-              style.textContent = hasRules + notificationFallback + pickerRules;
+              style.textContent = hasRules + notificationReadability + pickerRules;
             })();
             """.trimIndent(),
             null,

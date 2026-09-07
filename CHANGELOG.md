@@ -8,6 +8,17 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 No unreleased user-facing changes are currently recorded.
 
+## [0.1.2] - 2026-09-08
+
+Patch release improving notification readability and reaction layout.
+
+### Fixed
+
+- Enlarge Misskey notification text, avatars, and grouped-reaction items according to Midroid's reaction-size setting.
+- Prevent reaction badges from covering user avatars by moving reaction notifications into dedicated avatar/reaction lanes instead of enlarging Misskey's original absolute overlay.
+- Increase notification reaction sizes to 32px / 40px / 48px for Standard / Large / Extra Large while keeping avatars fully visible.
+- Restrict notification reaction CSS to the MkNotification structure instead of broadly resizing matching emoji containers elsewhere on the page.
+
 ## [0.1.1] - 2026-09-07
 
 Patch release fixing the native audio fallback UI scope.
