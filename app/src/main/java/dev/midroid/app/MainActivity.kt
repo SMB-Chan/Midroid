@@ -36,6 +36,7 @@ import dev.midroid.app.ui.SetupScreen
 import dev.midroid.app.web.ExternalNavigator
 import dev.midroid.app.web.MidroidWebChromeClient
 import dev.midroid.app.web.MidroidWebViewClient
+import dev.midroid.app.web.MisskeyUiTuner
 import dev.midroid.app.web.NavigationState
 import dev.midroid.app.web.WebViewFactory
 
@@ -43,6 +44,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var preferences: AppPreferences
     private val powerController = WebViewPowerController()
     private val navigationState = NavigationState()
+    private val uiTuner = MisskeyUiTuner()
 
     private var webView: WebView? = null
     private var browserRoot: LinearLayout? = null
@@ -114,7 +116,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        webView?.let { applyTextScale(it, newConfig) }
+        webView?.let { view ->
+            val textZoom = applyTextScale(view, newConfig)
+            uiTuner.applyReactionScale(view, textZoom)
+        }
     }
 
     override fun onDestroy() {
@@ -231,6 +236,7 @@ class MainActivity : ComponentActivity() {
                 navigationState.onPageFinished(finishedUrl)
                 RuntimeDiagnostics.logPageReady(this, currentMode, navigationState.currentUrl ?: lastKnownUrl)
                 powerController.onPageReady(this, view, currentMode)
+                uiTuner.applyReactionScale(view, resolveTextZoom())
             },
             onRendererGone = ::handleRendererGone,
         )
@@ -280,10 +286,19 @@ class MainActivity : ComponentActivity() {
         if (visibleToUser) powerController.onForeground(this, created, currentMode)
     }
 
-    private fun applyTextScale(view: WebView, configuration: Configuration = resources.configuration) {
+    private fun resolveTextZoom(configuration: Configuration = resources.configuration): Int {
         val densityDpi = resources.displayMetrics.densityDpi
         val screenWidthDp = configuration.screenWidthDp
-        view.settings.textZoom = currentTextScale.resolveTextZoom(densityDpi, screenWidthDp)
+        return currentTextScale.resolveTextZoom(densityDpi, screenWidthDp)
+    }
+
+    private fun applyTextScale(
+        view: WebView,
+        configuration: Configuration = resources.configuration,
+    ): Int {
+        val textZoom = resolveTextZoom(configuration)
+        view.settings.textZoom = textZoom
+        return textZoom
     }
 
     private fun handleRendererGone(deadView: WebView, detail: RenderProcessGoneDetail) {
