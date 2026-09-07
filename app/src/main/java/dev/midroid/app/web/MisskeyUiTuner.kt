@@ -117,13 +117,13 @@ class MisskeyUiTuner {
                     margin-right: auto !important;
                     overflow-x: hidden !important;
                     overscroll-behavior-x: none !important;
-                  }\n` +
-                  root + ` * {
+                  }
+                ` + root + ` * {
                     box-sizing: border-box !important;
                     max-width: 100%;
-                  }\n` +
-                  gridRule + '\n' +
-                  root + ` button._button.item {
+                  }
+                ` + gridRule + `
+                ` + root + ` button._button.item {
                     width: ${metrics.deckCellCssPx}px !important;
                     min-width: 0 !important;
                     max-width: ${metrics.deckCellCssPx}px !important;
@@ -131,8 +131,8 @@ class MisskeyUiTuner {
                     min-height: ${metrics.deckCellCssPx}px !important;
                     padding: 4px !important;
                     box-sizing: border-box !important;
-                  }\n` +
-                  root + ` button._button.item > .emoji {
+                  }
+                ` + root + ` button._button.item > .emoji {
                     width: ${metrics.deckEmojiCssPx}px !important;
                     max-width: ${metrics.deckEmojiCssPx}px !important;
                     height: ${metrics.deckEmojiCssPx}px !important;
