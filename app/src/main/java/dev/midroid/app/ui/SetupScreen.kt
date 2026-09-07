@@ -2,6 +2,7 @@ package dev.midroid.app.ui
 
 import android.app.Activity
 import android.graphics.Typeface
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.webkit.WebView
@@ -11,19 +12,23 @@ import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
 import dev.midroid.app.power.PowerMode
+import kotlin.math.roundToInt
 
 class SetupScreen(
     activity: Activity,
     initialUrl: String,
     initialMode: PowerMode,
+    initialTextScalePercent: Int,
     private val onCopyDiagnostics: () -> Unit,
-    private val onSave: (String, PowerMode, TextView) -> Unit,
+    private val onSave: (String, PowerMode, Int, TextView) -> Unit,
 ) : ScrollView(activity) {
     private val urlInput = EditText(activity)
     private val modeGroup = RadioGroup(activity)
     private val errorText = TextView(activity)
+    private var textScalePercent = initialTextScalePercent.coerceIn(80, 200)
 
     init {
         isFillViewport = true
@@ -53,10 +58,43 @@ class SetupScreen(
 
         urlInput.apply {
             hint = "https://misskey.example"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             setSingleLine(true)
             setText(initialUrl)
         }
         content.addView(urlInput, matchWrap())
+
+        val textScaleLabel = TextView(activity).apply {
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, dp(24), 0, dp(8))
+        }
+        val preview = TextView(activity).apply {
+            text = "文字の大きさを確認できます。"
+        }
+        fun updateTextScalePreview() {
+            val effectivePercent = (activity.resources.configuration.fontScale * textScalePercent).roundToInt()
+            textScaleLabel.text = "文字の大きさ：${effectivePercent}%"
+            preview.textSize = 16f * textScalePercent / 100f
+        }
+        updateTextScalePreview()
+        content.addView(textScaleLabel, matchWrap())
+        content.addView(TextView(activity).apply {
+            text = "端末の文字サイズに連動します。スライダーでさらに調整できます。"
+        }, matchWrap())
+        content.addView(SeekBar(activity).apply {
+            contentDescription = "文字の大きさ"
+            max = 24
+            progress = (textScalePercent - 80) / 5
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    textScalePercent = 80 + progress * 5
+                    updateTextScalePreview()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }, matchWrap())
+        content.addView(preview, matchWrap())
 
         content.addView(TextView(activity).apply {
             text = "Power mode"
@@ -86,7 +124,7 @@ class SetupScreen(
             text = "Open Misskey"
             setOnClickListener {
                 errorText.visibility = GONE
-                onSave(urlInput.text.toString(), selectedMode(), errorText)
+                onSave(urlInput.text.toString(), selectedMode(), textScalePercent, errorText)
             }
         }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,

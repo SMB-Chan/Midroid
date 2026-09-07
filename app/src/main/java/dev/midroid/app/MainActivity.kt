@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
     private var browserRoot: LinearLayout? = null
     private var currentInstance: InstanceConfig? = null
     private var currentMode: PowerMode = PowerMode.BALANCED
+    private var currentTextScalePercent = 100
     private var pendingUrl: String? = null
     private var lastKnownUrl: String? = null
     private var visibleToUser = false
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
 
         currentInstance = preferences.loadInstance()
         currentMode = preferences.loadPowerMode()
+        currentTextScalePercent = preferences.loadTextScalePercent()
         RuntimeDiagnostics.logAppStart(this, currentMode, currentInstance?.origin)
 
         val instance = currentInstance
@@ -133,13 +135,15 @@ class MainActivity : ComponentActivity() {
             activity = this,
             initialUrl = currentInstance?.origin.orEmpty(),
             initialMode = currentMode,
+            initialTextScalePercent = currentTextScalePercent,
             onCopyDiagnostics = ::copyDiagnostics,
-        ) { rawUrl, mode, errorView ->
+        ) { rawUrl, mode, textScalePercent, errorView ->
             val result = InstanceConfig.parse(rawUrl)
             result.onSuccess { instance ->
                 currentInstance = instance
                 currentMode = mode
-                preferences.save(instance, mode)
+                currentTextScalePercent = textScalePercent
+                preferences.save(instance, mode, textScalePercent)
                 showBrowser(instance.origin)
             }.onFailure { error ->
                 errorView.text = error.message ?: "Invalid instance URL."
@@ -170,7 +174,7 @@ class MainActivity : ComponentActivity() {
         }
         browserRoot = root
 
-        val created = WebViewFactory.create(this)
+        val created = WebViewFactory.create(this, currentTextScalePercent)
         webView = created
 
         powerController.configure(this, created, currentMode)
