@@ -39,6 +39,24 @@ class MisskeyUiTuner {
                   font-size: 0.65em !important;
                   margin-left: 6px !important;
                 }
+
+                .omfetrab button._button.item {
+                  width: ${metrics.deckCellCssPx}px !important;
+                  min-width: ${metrics.deckCellCssPx}px !important;
+                  height: ${metrics.deckCellCssPx}px !important;
+                  min-height: ${metrics.deckCellCssPx}px !important;
+                  padding: 4px !important;
+                  box-sizing: border-box !important;
+                }
+
+                .omfetrab button._button.item > .emoji {
+                  width: ${metrics.deckEmojiCssPx}px !important;
+                  max-width: ${metrics.deckEmojiCssPx}px !important;
+                  height: ${metrics.deckEmojiCssPx}px !important;
+                  max-height: ${metrics.deckEmojiCssPx}px !important;
+                  font-size: ${metrics.deckEmojiCssPx}px !important;
+                  object-fit: contain !important;
+                }
               `;
             })();
             """.trimIndent(),
