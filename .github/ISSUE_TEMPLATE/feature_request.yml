@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose a focused Midroid improvement
+title: "[Feature] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Midroid favors measured, narrowly scoped changes that keep the browser/security maintenance surface small.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user-visible limitation or measured bottleneck should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful change.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence / measurement
+      description: For power or performance requests, include reproducible observations if possible.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Could this be solved by WebView/Android APIs without a larger browser fork or persistent background service?
