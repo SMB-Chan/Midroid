@@ -7,9 +7,16 @@ class MisskeyMediaFallbackBridge {
         webView.evaluateJavascript(
             """
             (() => {
-              const key = '__midroid_native_audio_fallback_v2';
-              const oldButtonId = '__midroid_native_audio_fallback';
-              const buttonId = '__midroid_native_audio_fallback_v2_button';
+              const key = '__midroid_native_audio_fallback_v3';
+              const oldKeys = [
+                '__midroid_native_audio_fallback_v2',
+                '__midroid_native_audio_fallback',
+              ];
+              const oldButtonIds = [
+                '__midroid_native_audio_fallback_v2_button',
+                '__midroid_native_audio_fallback',
+              ];
+              const buttonId = '__midroid_native_audio_fallback_v3_button';
 
               const normalizeHttps = (raw) => {
                 if (!raw) return null;
@@ -39,6 +46,8 @@ class MisskeyMediaFallbackBridge {
               };
 
               let lastAudio = null;
+              let refreshScheduled = false;
+              let settleTimer = null;
 
               const remember = (audio) => {
                 if (audio instanceof HTMLAudioElement && audio.isConnected) {
@@ -78,17 +87,15 @@ class MisskeyMediaFallbackBridge {
                 return selected;
               };
 
-              const removeButton = () => {
-                document.getElementById(oldButtonId)?.remove();
+              const removeButtons = () => {
+                for (const id of oldButtonIds) document.getElementById(id)?.remove();
                 document.getElementById(buttonId)?.remove();
               };
 
-              const openNative = (event) => {
-                event?.preventDefault?.();
-                event?.stopPropagation?.();
+              const buildNativeUrl = () => {
                 const audio = selectAudio();
                 const source = sourceFor(audio);
-                if (!source) return false;
+                if (!source) return null;
 
                 const target = new URL('midroid-audio://play');
                 target.searchParams.set('url', source);
@@ -97,7 +104,17 @@ class MisskeyMediaFallbackBridge {
                   document.title ||
                   'Misskey audio';
                 target.searchParams.set('title', title);
-                window.location.href = target.toString();
+                return target.toString();
+              };
+
+              const openNative = (event) => {
+                event?.preventDefault?.();
+                event?.stopPropagation?.();
+                const target = buildNativeUrl();
+                if (!target) return false;
+                // Keep this as a top-frame navigation only. MidroidWebViewClient rejects the
+                // private scheme from subframes, so embedded content cannot trigger native UI.
+                window.location.assign(target);
                 return true;
               };
 
@@ -105,11 +122,11 @@ class MisskeyMediaFallbackBridge {
                 const audio = selectAudio();
                 const source = sourceFor(audio);
                 if (!source) {
-                  removeButton();
+                  removeButtons();
                   return false;
                 }
 
-                document.getElementById(oldButtonId)?.remove();
+                for (const id of oldButtonIds) document.getElementById(id)?.remove();
                 let button = document.getElementById(buttonId);
                 if (!button) {
                   button = document.createElement('button');
@@ -144,17 +161,32 @@ class MisskeyMediaFallbackBridge {
                 return true;
               };
 
+              const scheduleRefresh = () => {
+                if (!refreshScheduled) {
+                  refreshScheduled = true;
+                  requestAnimationFrame(() => {
+                    refreshScheduled = false;
+                    refresh();
+                  });
+                }
+
+                // One short settle pass handles delayed SPA/media updates without stacking
+                // four timers per DOM/event mutation.
+                if (settleTimer !== null) clearTimeout(settleTimer);
+                settleTimer = setTimeout(() => {
+                  settleTimer = null;
+                  refresh();
+                }, 250);
+              };
+
               if (window[key]) {
                 window[key].refresh();
                 return;
               }
 
-              const scheduleRefresh = () => {
-                setTimeout(refresh, 0);
-                setTimeout(refresh, 150);
-                setTimeout(refresh, 600);
-                setTimeout(refresh, 1500);
-              };
+              for (const oldKey of oldKeys) {
+                try { delete window[oldKey]; } catch (_) {}
+              }
 
               const onAudioEvent = (event) => {
                 if (event.target instanceof HTMLAudioElement) {
@@ -183,9 +215,19 @@ class MisskeyMediaFallbackBridge {
                       return;
                     }
                   }
+                  if (record.type === 'attributes' &&
+                      (record.target instanceof HTMLAudioElement || record.target instanceof HTMLSourceElement)) {
+                    scheduleRefresh();
+                    return;
+                  }
                 }
               });
-              observer.observe(document.documentElement, { childList: true, subtree: true });
+              observer.observe(document.documentElement, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['src'],
+              });
 
               window[key] = { refresh, openNative };
               scheduleRefresh();
@@ -199,55 +241,11 @@ class MisskeyMediaFallbackBridge {
         webView.evaluateJavascript(
             """
             (() => {
-              const existing = window['__midroid_native_audio_fallback_v2'];
+              const existing = window['__midroid_native_audio_fallback_v3'];
               if (existing && typeof existing.openNative === 'function') {
                 return existing.openNative();
               }
-
-              const normalizeHttps = (raw) => {
-                if (!raw) return null;
-                try {
-                  const resolved = new URL(raw, document.baseURI);
-                  return resolved.protocol === 'https:' ? resolved.href : null;
-                } catch (_) {
-                  return null;
-                }
-              };
-
-              const sourceFor = (audio) => {
-                const values = [audio.currentSrc, audio.src, audio.getAttribute('src')];
-                for (const source of audio.querySelectorAll('source')) {
-                  values.push(source.src, source.getAttribute('src'));
-                }
-                for (const value of values) {
-                  const normalized = normalizeHttps(value);
-                  if (normalized) return normalized;
-                }
-                return null;
-              };
-
-              const candidates = Array.from(document.querySelectorAll('audio'))
-                .filter((audio) => sourceFor(audio));
-              const audio = candidates.find((candidate) => !candidate.paused && !candidate.ended) ||
-                candidates.filter((candidate) => candidate.readyState > HTMLMediaElement.HAVE_NOTHING).at(-1) ||
-                candidates.at(-1) ||
-                null;
-              if (!audio) return false;
-
-              const source = sourceFor(audio);
-              if (!source) return false;
-
-              const target = new URL('midroid-audio://play');
-              target.searchParams.set('url', source);
-              target.searchParams.set(
-                'title',
-                audio.getAttribute('aria-label') ||
-                  audio.getAttribute('title') ||
-                  document.title ||
-                  'Misskey audio',
-              );
-              window.location.href = target.toString();
-              return true;
+              return false;
             })();
             """.trimIndent(),
         ) { rawResult ->
