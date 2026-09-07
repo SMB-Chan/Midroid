@@ -18,7 +18,7 @@ import dev.midroid.app.config.TextScale
 import dev.midroid.app.power.PowerMode
 
 class SetupScreen(
-    activity: Activity,
+    private val activity: Activity,
     initialUrl: String,
     initialMode: PowerMode,
     initialTextScale: TextScale,
@@ -42,31 +42,31 @@ class SetupScreen(
         }
 
         content.addView(TextView(activity).apply {
-            text = getString(R.string.app_name)
+            text = activity.getString(R.string.app_name)
             textSize = 32f
             setTypeface(typeface, Typeface.BOLD)
         }, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = getString(R.string.setup_intro)
+            text = activity.getString(R.string.setup_intro)
             textSize = 16f
             setPadding(0, dp(8), 0, dp(28))
         }, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = getString(R.string.misskey_instance)
+            text = activity.getString(R.string.misskey_instance)
             setTypeface(typeface, Typeface.BOLD)
         }, matchWrap())
 
         urlInput.apply {
-            hint = getString(R.string.misskey_instance_hint)
+            hint = activity.getString(R.string.misskey_instance_hint)
             setSingleLine(true)
             setText(initialUrl)
         }
         content.addView(urlInput, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = getString(R.string.power_mode)
+            text = activity.getString(R.string.power_mode)
             setTypeface(typeface, Typeface.BOLD)
             setPadding(0, dp(24), 0, dp(8))
         }, matchWrap())
@@ -84,7 +84,7 @@ class SetupScreen(
         content.addView(modeGroup, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = getString(R.string.text_scale)
+            text = activity.getString(R.string.text_scale)
             setTypeface(typeface, Typeface.BOLD)
             setPadding(0, dp(24), 0, dp(8))
         }, matchWrap())
@@ -106,13 +106,13 @@ class SetupScreen(
         content.addView(textScaleGroup, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = getString(R.string.reaction_size)
+            text = activity.getString(R.string.reaction_size)
             setTypeface(typeface, Typeface.BOLD)
             setPadding(0, dp(24), 0, dp(8))
         }, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = getString(R.string.reaction_size_description)
+            text = activity.getString(R.string.reaction_size_description)
             textSize = 13f
             setPadding(0, 0, 0, dp(4))
         }, matchWrap())
@@ -136,7 +136,7 @@ class SetupScreen(
         content.addView(errorText, matchWrap())
 
         content.addView(Button(activity).apply {
-            text = getString(R.string.open_misskey)
+            text = activity.getString(R.string.open_misskey)
             setOnClickListener {
                 val error = onSave(
                     urlInput.text.toString(),
@@ -158,12 +158,12 @@ class SetupScreen(
         content.addView(TextView(activity).apply {
             val provider = WebView.getCurrentWebViewPackage()
             text = if (provider == null) {
-                getString(R.string.webview_provider_unavailable)
+                activity.getString(R.string.webview_provider_unavailable)
             } else {
-                getString(
+                activity.getString(
                     R.string.webview_provider,
                     provider.packageName,
-                    provider.versionName ?: getString(R.string.unknown),
+                    provider.versionName ?: activity.getString(R.string.unknown),
                 )
             }
             textSize = 12f
@@ -171,7 +171,7 @@ class SetupScreen(
         }, matchWrap())
 
         content.addView(Button(activity).apply {
-            text = getString(R.string.copy_diagnostics)
+            text = activity.getString(R.string.copy_diagnostics)
             setOnClickListener { onCopyDiagnostics() }
         }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -179,7 +179,7 @@ class SetupScreen(
         ).apply { topMargin = dp(12) })
 
         content.addView(TextView(activity).apply {
-            text = getString(R.string.privacy_note)
+            text = activity.getString(R.string.privacy_note)
             textSize = 12f
             setPadding(0, dp(8), 0, 0)
         }, matchWrap())
@@ -193,7 +193,7 @@ class SetupScreen(
             PowerMode.BALANCED -> R.string.power_balanced_title to R.string.power_balanced_description
             PowerMode.PERFORMANCE -> R.string.power_performance_title to R.string.power_performance_description
         }
-        return "${getString(titleId)}\n${getString(descriptionId)}"
+        return "${activity.getString(titleId)}\n${activity.getString(descriptionId)}"
     }
 
     private fun textScaleLabel(scale: TextScale, resolved: Int): String {
@@ -204,10 +204,10 @@ class SetupScreen(
             TextScale.LARGE -> R.string.text_scale_130_title to R.string.text_scale_130_description
             TextScale.EXTRA_LARGE -> R.string.text_scale_145_title to R.string.text_scale_145_description
         }
-        val title = getString(titleId)
-        val description = getString(descriptionId)
+        val title = activity.getString(titleId)
+        val description = activity.getString(descriptionId)
         return if (scale == TextScale.AUTO) {
-            getString(R.string.text_scale_auto_current, title, resolved, description)
+            activity.getString(R.string.text_scale_auto_current, title, resolved, description)
         } else {
             "$title\n$description"
         }
@@ -219,7 +219,7 @@ class SetupScreen(
             ReactionScale.LARGE -> R.string.reaction_large_title to R.string.reaction_large_description
             ReactionScale.EXTRA_LARGE -> R.string.reaction_extra_large_title to R.string.reaction_extra_large_description
         }
-        return "${getString(titleId)}\n${getString(descriptionId)}"
+        return "${activity.getString(titleId)}\n${activity.getString(descriptionId)}"
     }
 
     private fun showError(message: String) {
