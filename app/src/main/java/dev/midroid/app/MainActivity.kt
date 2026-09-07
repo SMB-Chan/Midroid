@@ -41,6 +41,7 @@ import dev.midroid.app.media.NativeAudioPlayerDialog
 import dev.midroid.app.media.NativeAudioRequest
 import dev.midroid.app.power.PowerMode
 import dev.midroid.app.power.WebViewPowerController
+import dev.midroid.app.ui.EdgeSwipeMenuLayout
 import dev.midroid.app.ui.SetupScreen
 import dev.midroid.app.web.ExternalNavigator
 import dev.midroid.app.web.MidroidWebChromeClient
@@ -428,7 +429,7 @@ class MainActivity : ComponentActivity() {
         lastKnownUrl = safeUrl
         navigationState.reset(safeUrl)
 
-        val root = FrameLayout(this)
+        val root = EdgeSwipeMenuLayout(this)
         browserRoot = root
 
         val created = runCatching {
@@ -490,48 +491,23 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val menuButton = TextView(this).apply {
-            text = "M"
-            contentDescription = getString(R.string.app_name)
-            textSize = 15f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            background = browserControlBackground()
-            alpha = 0.86f
-            elevation = dp(6).toFloat()
-            isClickable = true
-            isFocusable = true
-            setPadding(0, 0, 0, 0)
-            setOnClickListener { anchor ->
-                alpha = 1f
-                PopupMenu(this@MainActivity, anchor).apply {
-                    menu.add(0, 1, 0, "${getString(R.string.app_name)} · ${account.displayLabel()}").apply {
-                        isEnabled = false
+        root.onMenuSwipe = {
+            val labels = arrayOf(
+                getString(R.string.switch_account),
+                getString(R.string.native_audio_fallback),
+                getString(R.string.settings),
+            )
+            AlertDialog.Builder(this)
+                .setTitle("${getString(R.string.app_name)} · ${account.displayLabel()}")
+                .setItems(labels) { _, which ->
+                    when (which) {
+                        0 -> showAccountSwitcher()
+                        1 -> requestNativeAudio()
+                        2 -> showSetup()
                     }
-                    menu.add(0, 2, 1, R.string.switch_account)
-                    menu.add(0, 3, 2, R.string.native_audio_fallback)
-                    menu.add(0, 4, 3, R.string.settings)
-                    setOnMenuItemClickListener { item ->
-                        when (item.itemId) {
-                            2 -> {
-                                showAccountSwitcher()
-                                true
-                            }
-                            3 -> {
-                                requestNativeAudio()
-                                true
-                            }
-                            4 -> {
-                                showSetup()
-                                true
-                            }
-                            else -> false
-                        }
-                    }
-                    setOnDismissListener { alpha = 0.86f }
-                }.show()
-            }
+                }
+                .setNegativeButton(R.string.close, null)
+                .show()
         }
 
         root.addView(
@@ -540,17 +516,6 @@ class MainActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT,
             ),
-        )
-        root.addView(
-            menuButton,
-            FrameLayout.LayoutParams(
-                dp(40),
-                dp(40),
-                Gravity.TOP or Gravity.END,
-            ).apply {
-                topMargin = dp(6)
-                marginEnd = dp(6)
-            },
         )
 
         setInsetContentView(root)
