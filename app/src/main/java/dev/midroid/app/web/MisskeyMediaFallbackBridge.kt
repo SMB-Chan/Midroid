@@ -43,16 +43,18 @@ class MisskeyMediaFallbackBridge {
         webView.evaluateJavascript(
             """
             (() => {
-              const key = '__midroid_native_audio_fallback_v3';
+              const key = '__midroid_native_audio_fallback_v4';
               const oldKeys = [
+                '__midroid_native_audio_fallback_v3',
                 '__midroid_native_audio_fallback_v2',
                 '__midroid_native_audio_fallback',
               ];
               const oldButtonIds = [
+                '__midroid_native_audio_fallback_v3_button',
                 '__midroid_native_audio_fallback_v2_button',
                 '__midroid_native_audio_fallback',
               ];
-              const buttonId = '__midroid_native_audio_fallback_v3_button';
+              const buttonId = '__midroid_native_audio_fallback_v4_button';
 
               const normalizeHttps = (raw) => {
                 if (!raw) return null;
@@ -81,6 +83,43 @@ class MisskeyMediaFallbackBridge {
                 return null;
               };
 
+              const activeLightboxRoot = () => {
+                if (window.location.hash !== '#pswp') return null;
+                const backgrounds = Array.from(document.querySelectorAll('._modalBg'));
+                for (let index = backgrounds.length - 1; index >= 0; index -= 1) {
+                  const root = backgrounds[index]?.parentElement;
+                  if (root?.isConnected) return root;
+                }
+                return null;
+              };
+
+              const isAudioInActiveItem = (audio, root) => {
+                if (!(audio instanceof HTMLAudioElement) || !(root instanceof Element)) return false;
+                if (!audio.isConnected || !root.contains(audio)) return false;
+
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                let node = audio;
+                while (node && node !== root) {
+                  if (node instanceof Element) {
+                    const rect = node.getBoundingClientRect();
+                    if (
+                      rect.width >= Math.max(1, window.innerWidth * 0.6) &&
+                      rect.height >= Math.max(1, window.innerHeight * 0.5)
+                    ) {
+                      return (
+                        rect.left <= centerX &&
+                        rect.right >= centerX &&
+                        rect.top <= centerY &&
+                        rect.bottom >= centerY
+                      );
+                    }
+                  }
+                  node = node.parentElement;
+                }
+                return false;
+              };
+
               let lastAudio = null;
               let refreshScheduled = false;
               let settleTimer = null;
@@ -103,10 +142,19 @@ class MisskeyMediaFallbackBridge {
               };
 
               const selectAudio = () => {
-                if (lastAudio?.isConnected && sourceFor(lastAudio)) return lastAudio;
+                const root = activeLightboxRoot();
+                if (!root) return null;
 
-                const candidates = Array.from(document.querySelectorAll('audio'))
-                  .filter((audio) => sourceFor(audio));
+                if (
+                  lastAudio?.isConnected &&
+                  sourceFor(lastAudio) &&
+                  isAudioInActiveItem(lastAudio, root)
+                ) {
+                  return lastAudio;
+                }
+
+                const candidates = Array.from(root.querySelectorAll('audio'))
+                  .filter((audio) => sourceFor(audio) && isAudioInActiveItem(audio, root));
                 if (candidates.length === 0) return null;
 
                 const playing = candidates.find((audio) => !audio.paused && !audio.ended);
@@ -162,6 +210,11 @@ class MisskeyMediaFallbackBridge {
               };
 
               const refresh = () => {
+                if (!activeLightboxRoot()) {
+                  removeButtons();
+                  return false;
+                }
+
                 const audio = selectAudio();
                 const source = sourceFor(audio);
                 if (!source) {
@@ -251,7 +304,14 @@ class MisskeyMediaFallbackBridge {
                 for (const record of records) {
                   for (const node of record.addedNodes) {
                     if (!(node instanceof Element)) continue;
-                    if (node.matches?.('audio, source') || node.querySelector?.('audio, source')) {
+                    if (node.matches?.('audio, source, ._modalBg') || node.querySelector?.('audio, source, ._modalBg')) {
+                      scheduleRefresh();
+                      return;
+                    }
+                  }
+                  for (const node of record.removedNodes) {
+                    if (!(node instanceof Element)) continue;
+                    if (node.matches?.('audio, source, ._modalBg') || node.querySelector?.('audio, source, ._modalBg')) {
                       scheduleRefresh();
                       return;
                     }
@@ -284,7 +344,7 @@ class MisskeyMediaFallbackBridge {
         webView.evaluateJavascript(
             """
             (() => {
-              const existing = window['__midroid_native_audio_fallback_v3'];
+              const existing = window['__midroid_native_audio_fallback_v4'];
               if (existing && typeof existing.openNative === 'function') {
                 return existing.openNative();
               }
