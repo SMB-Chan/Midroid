@@ -6,6 +6,12 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 ## [Unreleased]
 
+No unreleased user-facing changes are currently recorded.
+
+## [0.1.1] - 2026-09-07
+
+Patch release fixing the native audio fallback UI scope.
+
 ### Fixed
 
 - Restrict the floating native-audio fallback to the currently active audio item inside Misskey's `#pswp` lightbox, preventing `Androidで再生` / `Play with Android` from appearing on ordinary timeline notes, image/video viewers, or stale hidden audio elements.
