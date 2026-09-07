@@ -1,5 +1,7 @@
 package dev.midroid.app.web
 
+import dev.midroid.app.config.ReactionScale
+
 data class ReactionScaleMetrics(
     val buttonHeightCssPx: Int,
     val buttonFontPercent: Int,
@@ -7,27 +9,22 @@ data class ReactionScaleMetrics(
 )
 
 object ReactionScalePolicy {
-    fun forTextZoom(textZoomPercent: Int): ReactionScaleMetrics {
-        return when {
-            textZoomPercent >= 145 -> ReactionScaleMetrics(
-                buttonHeightCssPx = 62,
-                buttonFontPercent = 230,
-                horizontalPaddingCssPx = 10,
-            )
-            textZoomPercent >= 130 -> ReactionScaleMetrics(
-                buttonHeightCssPx = 58,
-                buttonFontPercent = 220,
-                horizontalPaddingCssPx = 9,
-            )
-            textZoomPercent >= 115 -> ReactionScaleMetrics(
-                buttonHeightCssPx = 55,
-                buttonFontPercent = 210,
-                horizontalPaddingCssPx = 8,
-            )
-            else -> ReactionScaleMetrics(
+    fun forScale(scale: ReactionScale): ReactionScaleMetrics {
+        return when (scale) {
+            ReactionScale.STANDARD -> ReactionScaleMetrics(
                 buttonHeightCssPx = 52,
                 buttonFontPercent = 200,
                 horizontalPaddingCssPx = 8,
+            )
+            ReactionScale.LARGE -> ReactionScaleMetrics(
+                buttonHeightCssPx = 60,
+                buttonFontPercent = 230,
+                horizontalPaddingCssPx = 10,
+            )
+            ReactionScale.EXTRA_LARGE -> ReactionScaleMetrics(
+                buttonHeightCssPx = 68,
+                buttonFontPercent = 260,
+                horizontalPaddingCssPx = 12,
             )
         }
     }
