@@ -7,7 +7,12 @@ import android.webkit.WebView
 
 class WebViewPowerController {
     fun configure(activity: Activity, webView: WebView, mode: PowerMode) {
-        webView.settings.mediaPlaybackRequiresUserGesture = mode == PowerMode.ECO
+        // Misskey opens its lightbox asynchronously and starts audio/video only after the
+        // viewer component has been mounted. Requiring a WebView user gesture here can lose
+        // the original tap activation before HTMLMediaElement.play() runs, especially in Eco.
+        // Keep WebView playback available and enforce Eco policy at the document/lifecycle
+        // layer instead: autoplay-tagged media is stopped and all media is paused onStop().
+        webView.settings.mediaPlaybackRequiresUserGesture = false
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             when (mode) {
