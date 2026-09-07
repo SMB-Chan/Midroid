@@ -14,6 +14,7 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 - Enlarge grouped-notification header symbols such as `+`, heart and renote, which Misskey otherwise keeps at a fixed 15px glyph size.
 - Render single notification reactions below the avatar and grouped reaction items as avatar/reaction stacks, preserving reaction aspect ratio and avoiding avatar overlap.
 - Clarify reaction-size settings by distinguishing tap-target size from actual emoji height.
+- Replace the fixed-height native browser toolbar with translucent overlay controls so the Misskey WebView uses the full browser content height while account, audio and settings actions remain directly accessible.
 
 ## [0.1.2] - 2026-09-08
 
