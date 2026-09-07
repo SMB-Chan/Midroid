@@ -12,6 +12,7 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
+import dev.midroid.app.R
 import dev.midroid.app.config.ReactionScale
 import dev.midroid.app.config.TextScale
 import dev.midroid.app.power.PowerMode
@@ -41,31 +42,31 @@ class SetupScreen(
         }
 
         content.addView(TextView(activity).apply {
-            text = "Midroid"
+            text = getString(R.string.app_name)
             textSize = 32f
             setTypeface(typeface, Typeface.BOLD)
         }, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = "A lifecycle-aware Misskey runtime built around Android System WebView."
+            text = getString(R.string.setup_intro)
             textSize = 16f
             setPadding(0, dp(8), 0, dp(28))
         }, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = "Misskey instance"
+            text = getString(R.string.misskey_instance)
             setTypeface(typeface, Typeface.BOLD)
         }, matchWrap())
 
         urlInput.apply {
-            hint = "https://misskey.example"
+            hint = getString(R.string.misskey_instance_hint)
             setSingleLine(true)
             setText(initialUrl)
         }
         content.addView(urlInput, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = "Power mode"
+            text = getString(R.string.power_mode)
             setTypeface(typeface, Typeface.BOLD)
             setPadding(0, dp(24), 0, dp(8))
         }, matchWrap())
@@ -74,7 +75,7 @@ class SetupScreen(
             val radio = RadioButton(activity).apply {
                 id = View.generateViewId()
                 tag = mode.key
-                text = "${mode.title}\n${mode.description}"
+                text = powerModeLabel(mode)
                 setPadding(0, dp(6), 0, dp(6))
                 isChecked = mode == initialMode
             }
@@ -83,7 +84,7 @@ class SetupScreen(
         content.addView(modeGroup, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = "Text scale"
+            text = getString(R.string.text_scale)
             setTypeface(typeface, Typeface.BOLD)
             setPadding(0, dp(24), 0, dp(8))
         }, matchWrap())
@@ -92,11 +93,7 @@ class SetupScreen(
         val screenWidthDp = activity.resources.configuration.screenWidthDp
         TextScale.entries.forEach { scale ->
             val resolved = scale.resolveTextZoom(densityDpi, screenWidthDp)
-            val label = if (scale == TextScale.AUTO) {
-                "${scale.title} (${resolved}% on this device)\n${scale.description}"
-            } else {
-                "${scale.title}\n${scale.description}"
-            }
+            val label = textScaleLabel(scale, resolved)
             val radio = RadioButton(activity).apply {
                 id = View.generateViewId()
                 tag = scale.key
@@ -109,13 +106,13 @@ class SetupScreen(
         content.addView(textScaleGroup, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = "Reaction size"
+            text = getString(R.string.reaction_size)
             setTypeface(typeface, Typeface.BOLD)
             setPadding(0, dp(24), 0, dp(8))
         }, matchWrap())
 
         content.addView(TextView(activity).apply {
-            text = "Independent from text scale. Changes reaction buttons, emoji and tap targets only."
+            text = getString(R.string.reaction_size_description)
             textSize = 13f
             setPadding(0, 0, 0, dp(4))
         }, matchWrap())
@@ -124,7 +121,7 @@ class SetupScreen(
             val radio = RadioButton(activity).apply {
                 id = View.generateViewId()
                 tag = scale.key
-                text = "${scale.title}\n${scale.description}"
+                text = reactionScaleLabel(scale)
                 setPadding(0, dp(6), 0, dp(6))
                 isChecked = scale == initialReactionScale
             }
@@ -139,7 +136,7 @@ class SetupScreen(
         content.addView(errorText, matchWrap())
 
         content.addView(Button(activity).apply {
-            text = "Open Misskey"
+            text = getString(R.string.open_misskey)
             setOnClickListener {
                 val error = onSave(
                     urlInput.text.toString(),
@@ -160,18 +157,21 @@ class SetupScreen(
 
         content.addView(TextView(activity).apply {
             val provider = WebView.getCurrentWebViewPackage()
-            val providerText = if (provider == null) {
-                "WebView provider: unavailable"
+            text = if (provider == null) {
+                getString(R.string.webview_provider_unavailable)
             } else {
-                "WebView provider: ${provider.packageName} ${provider.versionName ?: "unknown"}"
+                getString(
+                    R.string.webview_provider,
+                    provider.packageName,
+                    provider.versionName ?: getString(R.string.unknown),
+                )
             }
-            text = providerText
             textSize = 12f
             setPadding(0, dp(20), 0, 0)
         }, matchWrap())
 
         content.addView(Button(activity).apply {
-            text = "Copy diagnostics"
+            text = getString(R.string.copy_diagnostics)
             setOnClickListener { onCopyDiagnostics() }
         }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -179,12 +179,47 @@ class SetupScreen(
         ).apply { topMargin = dp(12) })
 
         content.addView(TextView(activity).apply {
-            text = "Midroid stores the selected instance and login cookies locally. HTTPS is required. External links open in your default browser. Diagnostic copies contain only the instance origin, device/WebView version, power mode and Android power-saver state."
+            text = getString(R.string.privacy_note)
             textSize = 12f
             setPadding(0, dp(8), 0, 0)
         }, matchWrap())
 
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun powerModeLabel(mode: PowerMode): String {
+        val (titleId, descriptionId) = when (mode) {
+            PowerMode.ECO -> R.string.power_eco_title to R.string.power_eco_description
+            PowerMode.BALANCED -> R.string.power_balanced_title to R.string.power_balanced_description
+            PowerMode.PERFORMANCE -> R.string.power_performance_title to R.string.power_performance_description
+        }
+        return "${getString(titleId)}\n${getString(descriptionId)}"
+    }
+
+    private fun textScaleLabel(scale: TextScale, resolved: Int): String {
+        val (titleId, descriptionId) = when (scale) {
+            TextScale.AUTO -> R.string.text_scale_auto_title to R.string.text_scale_auto_description
+            TextScale.DEFAULT -> R.string.text_scale_100_title to R.string.text_scale_100_description
+            TextScale.COMFORTABLE -> R.string.text_scale_115_title to R.string.text_scale_115_description
+            TextScale.LARGE -> R.string.text_scale_130_title to R.string.text_scale_130_description
+            TextScale.EXTRA_LARGE -> R.string.text_scale_145_title to R.string.text_scale_145_description
+        }
+        val title = getString(titleId)
+        val description = getString(descriptionId)
+        return if (scale == TextScale.AUTO) {
+            getString(R.string.text_scale_auto_current, title, resolved, description)
+        } else {
+            "$title\n$description"
+        }
+    }
+
+    private fun reactionScaleLabel(scale: ReactionScale): String {
+        val (titleId, descriptionId) = when (scale) {
+            ReactionScale.STANDARD -> R.string.reaction_standard_title to R.string.reaction_standard_description
+            ReactionScale.LARGE -> R.string.reaction_large_title to R.string.reaction_large_description
+            ReactionScale.EXTRA_LARGE -> R.string.reaction_extra_large_title to R.string.reaction_extra_large_description
+        }
+        return "${getString(titleId)}\n${getString(descriptionId)}"
     }
 
     private fun showError(message: String) {
