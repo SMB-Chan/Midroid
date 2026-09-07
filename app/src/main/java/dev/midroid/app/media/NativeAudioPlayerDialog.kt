@@ -50,6 +50,9 @@ class NativeAudioPlayerDialog(
     private var userSeeking = false
     private var preparedOnce = false
     private var timedOut = false
+    private var hostVisible = true
+    private var playbackRequested = false
+    private var preparationInterrupted = false
 
     private val prepareTimeout = Runnable {
         val active = player ?: return@Runnable
@@ -70,12 +73,15 @@ class NativeAudioPlayerDialog(
     private val progressUpdater = object : Runnable {
         override fun run() {
             val active = player ?: return
+            if (!NativeAudioPlaybackPolicy.shouldPollProgress(hostVisible, dialog != null)) return
             if (!userSeeking && active.playbackState != Player.STATE_IDLE) {
                 val duration = knownDuration(active)
                 val position = active.currentPosition.coerceAtLeast(0L)
                 updateSeek(position, duration)
             }
-            mainHandler.postDelayed(this, PROGRESS_INTERVAL_MS)
+            if (NativeAudioPlaybackPolicy.shouldPollProgress(hostVisible, dialog != null)) {
+                mainHandler.postDelayed(this, PROGRESS_INTERVAL_MS)
+            }
         }
     }
 
@@ -84,6 +90,9 @@ class NativeAudioPlayerDialog(
         headers: Map<String, String>,
     ) {
         dismiss()
+        hostVisible = true
+        playbackRequested = true
+        preparationInterrupted = false
 
         val uri = Uri.parse(request.sourceUrl)
         if (!uri.scheme.equals("https", ignoreCase = true) || uri.host.isNullOrBlank()) {
@@ -165,11 +174,15 @@ class NativeAudioPlayerDialog(
             setOnClickListener {
                 val active = player ?: return@setOnClickListener
                 when {
-                    timedOut || active.playerError != null || active.playbackState == Player.STATE_IDLE -> {
+                    preparationInterrupted || timedOut || active.playerError != null || active.playbackState == Player.STATE_IDLE -> {
+                        playbackRequested = true
                         retryPreparation()
                     }
                     active.isPlaying -> pause()
-                    else -> startPlayback()
+                    else -> {
+                        playbackRequested = true
+                        startPlayback()
+                    }
                 }
             }
         }
@@ -196,13 +209,14 @@ class NativeAudioPlayerDialog(
         dialog = createdDialog
         createdDialog.show()
 
-        val safeHeaders = headers
-            .filterKeys { key ->
-                key.equals("User-Agent", true) ||
-                    key.equals("Cookie", true) ||
-                    key.equals("Referer", true)
-            }
-            .filterValues { it.isNotBlank() }
+        val trustedOrigin = headers.entries
+            .firstOrNull { (key, _) -> key.equals("Referer", ignoreCase = true) }
+            ?.value
+        val safeHeaders = NativeAudioHeaderPolicy.sanitize(
+            sourceUrl = request.sourceUrl,
+            instanceBaseUrl = trustedOrigin,
+            headers = headers,
+        )
 
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(CONNECT_TIMEOUT_MS)
@@ -242,7 +256,11 @@ class NativeAudioPlayerDialog(
                             preparedOnce = true
                             status.text = activity.getString(R.string.native_audio_ready)
                             updateSeek(exoPlayer.currentPosition, duration)
-                            startPlayback()
+                            if (NativeAudioPlaybackPolicy.shouldAutoStart(hostVisible, playbackRequested)) {
+                                startPlayback()
+                            } else {
+                                play.text = activity.getString(R.string.native_audio_play)
+                            }
                         }
                     }
                     Player.STATE_ENDED -> {
@@ -280,11 +298,46 @@ class NativeAudioPlayerDialog(
         })
 
         mainHandler.removeCallbacks(progressUpdater)
-        mainHandler.post(progressUpdater)
+        if (NativeAudioPlaybackPolicy.shouldPollProgress(hostVisible, dialog != null)) {
+            mainHandler.post(progressUpdater)
+        }
         beginPreparation()
     }
 
+    fun onHostStarted() {
+        hostVisible = true
+        mainHandler.removeCallbacks(progressUpdater)
+        if (NativeAudioPlaybackPolicy.shouldPollProgress(hostVisible, dialog != null)) {
+            mainHandler.post(progressUpdater)
+        }
+    }
+
+    fun onHostStopped() {
+        hostVisible = false
+        playbackRequested = false
+        mainHandler.removeCallbacks(progressUpdater)
+        mainHandler.removeCallbacks(prepareTimeout)
+        val active = player ?: return
+        active.playWhenReady = false
+        if (!preparedOnce && active.playbackState == Player.STATE_BUFFERING) {
+            active.stop()
+            preparationInterrupted = true
+            playButton?.apply {
+                text = activity.getString(R.string.native_audio_retry)
+                isEnabled = true
+            }
+            statusView?.text = activity.getString(R.string.native_audio_paused)
+        } else {
+            active.pause()
+            playButton?.text = activity.getString(R.string.native_audio_play)
+            if (active.playbackState == Player.STATE_READY) {
+                statusView?.text = activity.getString(R.string.native_audio_paused)
+            }
+        }
+    }
+
     fun pause() {
+        playbackRequested = false
         player?.pause()
         playButton?.text = activity.getString(R.string.native_audio_play)
         if (player?.playbackState == Player.STATE_READY) {
@@ -305,6 +358,7 @@ class NativeAudioPlayerDialog(
     private fun beginPreparation() {
         val active = player ?: return
         timedOut = false
+        preparationInterrupted = false
         statusView?.text = activity.getString(R.string.native_audio_preparing)
         playButton?.apply {
             text = activity.getString(R.string.native_audio_play)
@@ -319,6 +373,8 @@ class NativeAudioPlayerDialog(
         val active = player ?: return
         preparedOnce = false
         timedOut = false
+        playbackRequested = true
+        preparationInterrupted = false
         active.stop()
         active.seekTo(0L)
         beginPreparation()
@@ -326,6 +382,11 @@ class NativeAudioPlayerDialog(
 
     private fun startPlayback() {
         val active = player ?: return
+        if (!hostVisible) {
+            playbackRequested = false
+            return
+        }
+        playbackRequested = true
         if (active.playbackState == Player.STATE_ENDED) {
             active.seekTo(0L)
         }
@@ -345,6 +406,8 @@ class NativeAudioPlayerDialog(
         userSeeking = false
         preparedOnce = false
         timedOut = false
+        playbackRequested = false
+        preparationInterrupted = false
     }
 
     private fun knownDuration(active: Player): Long {

@@ -11,6 +11,11 @@
     <string name="add_account">Add account</string>
     <string name="add_account_description">Enter a Misskey instance. Midroid will open it in an isolated WebView profile so you can sign in independently.</string>
     <string name="multi_profile_unsupported">This Android System WebView does not support isolated multi-account profiles. Update Android System WebView or Chrome to use multiple accounts.</string>
+    <string name="account_profile_recovered">The saved isolated account is not supported by this WebView provider. Midroid switched safely to the default account.</string>
+    <string name="webview_recovery_title">WebView recovery</string>
+    <string name="webview_recovery_message">Midroid could not open the selected WebView profile. %1$s You can retry, switch accounts, or open settings.</string>
+    <string name="webview_recovery_provider_error">The Android System WebView provider failed to create this profile.</string>
+    <string name="retry">Retry</string>
     <string name="account_added">Account profile added. Sign in to Misskey in this isolated session.</string>
     <string name="cancel">Cancel</string>
     <string name="power_mode">Power mode</string>

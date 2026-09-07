@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         visibleToUser = true
+        nativeAudioPlayer?.onHostStarted()
         RuntimeDiagnostics.logLifecycle(
             this,
             "visible",
@@ -131,7 +132,7 @@ class MainActivity : ComponentActivity() {
             currentMode,
             navigationState.currentUrl ?: lastKnownUrl ?: currentInstance?.origin,
         )
-        nativeAudioPlayer?.pause()
+        nativeAudioPlayer?.onHostStopped()
         webView?.let { powerController.onBackground(it) }
         visibleToUser = false
         super.onStop()
@@ -339,6 +340,57 @@ class MainActivity : ComponentActivity() {
         showBrowser(account.restoreUrl())
     }
 
+    private fun recoverToDefaultAccount(failedAccount: AccountProfile): Boolean {
+        accounts = accountRegistry.loadAccounts()
+        val fallback = accounts.firstOrNull { candidate ->
+            candidate.id != failedAccount.id &&
+                candidate.profileName == null &&
+                candidate.instanceConfig() != null
+        } ?: return false
+        val instance = fallback.instanceConfig() ?: return false
+
+        accountRegistry.setActive(fallback.id)
+        currentAccount = fallback
+        currentInstance = instance
+        preferences.save(instance, currentMode, currentTextScale, currentReactionScale)
+        Toast.makeText(this, R.string.account_profile_recovered, Toast.LENGTH_LONG).show()
+        showBrowser(fallback.restoreUrl())
+        return true
+    }
+
+    private fun showWebViewRecovery(detail: String) {
+        destroyWebView()
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(24), dp(24), dp(24))
+        }
+        root.addView(TextView(this).apply {
+            text = getString(R.string.webview_recovery_title)
+            textSize = 22f
+            setPadding(0, 0, 0, dp(12))
+        })
+        root.addView(TextView(this).apply {
+            text = getString(R.string.webview_recovery_message, detail)
+            setPadding(0, 0, 0, dp(20))
+        })
+        root.addView(Button(this).apply {
+            text = getString(R.string.retry)
+            setOnClickListener {
+                val target = currentAccount?.restoreUrl() ?: currentInstance?.origin
+                if (target != null) showBrowser(target) else showSetup()
+            }
+        })
+        root.addView(Button(this).apply {
+            text = getString(R.string.accounts)
+            setOnClickListener { showAccountSwitcher() }
+        })
+        root.addView(Button(this).apply {
+            text = getString(R.string.settings)
+            setOnClickListener { showSetup() }
+        })
+        setInsetContentView(root)
+    }
+
     private fun persistCurrentUrl() {
         val account = currentAccount ?: return
         val url = navigationState.currentUrl ?: lastKnownUrl ?: return
@@ -365,7 +417,8 @@ class MainActivity : ComponentActivity() {
             account.profileName != null &&
             !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)
         ) {
-            Toast.makeText(this, R.string.multi_profile_unsupported, Toast.LENGTH_LONG).show()
+            if (recoverToDefaultAccount(account)) return
+            showWebViewRecovery(getString(R.string.multi_profile_unsupported))
             return
         }
 
@@ -382,14 +435,17 @@ class MainActivity : ComponentActivity() {
         val created = runCatching {
             WebViewFactory.create(this, account.profileName)
         }.getOrElse {
-            Toast.makeText(this, R.string.multi_profile_unsupported, Toast.LENGTH_LONG).show()
             browserRoot = null
+            showWebViewRecovery(getString(R.string.webview_recovery_provider_error))
             return
         }
         webView = created
 
         applyTextScale(created)
         powerController.configure(this, created, currentMode)
+        mediaFallbackBridge.attach(created, instance) { request ->
+            playNativeAudio(request, created)
+        }
 
         val externalNavigator = ExternalNavigator(this)
         created.webViewClient = MidroidWebViewClient(
@@ -510,14 +566,11 @@ class MainActivity : ComponentActivity() {
         sourceWebView.settings.userAgentString
             ?.takeIf { it.isNotBlank() }
             ?.let { headers["User-Agent"] = it }
-        WebViewFactory.cookieManagerFor(sourceWebView).getCookie(request.sourceUrl)
-            ?.takeIf { it.isNotBlank() }
-            ?.let { headers["Cookie"] = it }
 
-        val referer = navigationState.currentUrl ?: lastKnownUrl
-        if (!referer.isNullOrBlank() && Uri.parse(referer).scheme.equals("https", ignoreCase = true)) {
-            headers["Referer"] = referer
-        }
+        // Media3/HttpURLConnection may follow HTTPS redirects to another host while
+        // replaying fixed request headers. Never copy WebView Cookie or full-page Referer
+        // into that redirecting client. Authenticated native media can be reintroduced only
+        // with a hop-aware HTTP implementation that strips credentials on origin change.
 
         nativeAudioPlayer?.dismiss()
         nativeAudioPlayer = NativeAudioPlayerDialog(this).also { player ->
@@ -595,9 +648,8 @@ class MainActivity : ComponentActivity() {
 
             if (!mimeType.isNullOrBlank()) request.setMimeType(mimeType)
             if (!userAgent.isNullOrBlank()) request.addRequestHeader("User-Agent", userAgent)
-            WebViewFactory.cookieManagerFor(sourceWebView)
-                .getCookie(url)
-                ?.let { request.addRequestHeader("Cookie", it) }
+            // DownloadManager replays fixed headers while following redirects. Do not
+            // attach WebView cookies here: a same-origin URL may redirect to another HTTPS host.
             if (!contentDisposition.isNullOrBlank()) {
                 request.setTitle(android.webkit.URLUtil.guessFileName(url, contentDisposition, mimeType))
             }
