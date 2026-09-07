@@ -19,11 +19,21 @@ class AppPreferences(context: Context) {
         return TextScale.fromKey(preferences.getString(KEY_TEXT_SCALE, null))
     }
 
-    fun save(instance: InstanceConfig, mode: PowerMode, textScale: TextScale) {
+    fun loadReactionScale(): ReactionScale {
+        return ReactionScale.fromKey(preferences.getString(KEY_REACTION_SCALE, null))
+    }
+
+    fun save(
+        instance: InstanceConfig,
+        mode: PowerMode,
+        textScale: TextScale,
+        reactionScale: ReactionScale,
+    ) {
         preferences.edit()
             .putString(KEY_INSTANCE, instance.origin)
             .putString(KEY_POWER_MODE, mode.key)
             .putString(KEY_TEXT_SCALE, textScale.key)
+            .putString(KEY_REACTION_SCALE, reactionScale.key)
             .apply()
     }
 
@@ -32,5 +42,6 @@ class AppPreferences(context: Context) {
         private const val KEY_INSTANCE = "instance_origin"
         private const val KEY_POWER_MODE = "power_mode"
         private const val KEY_TEXT_SCALE = "text_scale"
+        private const val KEY_REACTION_SCALE = "reaction_scale"
     }
 }
