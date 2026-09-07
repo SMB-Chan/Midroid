@@ -12,10 +12,10 @@ class ReactionScalePolicyTest {
                 52, 200, 8,
                 40, 160,
                 48, 32,
-                36, 108,
-                46, 46,
+                34, 102,
+                46, 42,
                 28, 24,
-                6, 102,
+                6, 100,
             ),
             ReactionScalePolicy.forScale(ReactionScale.STANDARD),
         )
@@ -28,10 +28,10 @@ class ReactionScalePolicyTest {
                 60, 230, 10,
                 48, 192,
                 56, 40,
-                46, 138,
-                54, 54,
-                34, 30,
-                8, 110,
+                42, 126,
+                52, 48,
+                32, 28,
+                6, 100,
             ),
             ReactionScalePolicy.forScale(ReactionScale.LARGE),
         )
@@ -40,17 +40,17 @@ class ReactionScalePolicyTest {
                 68, 260, 12,
                 58, 232,
                 64, 48,
-                58, 174,
-                64, 64,
-                42, 38,
-                8, 120,
+                50, 150,
+                58, 54,
+                36, 32,
+                8, 100,
             ),
             ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE),
         )
     }
 
     @Test
-    fun allReactionSurfacesGrowWithDisplayMode() {
+    fun reactionSurfacesGrowWithoutScalingNotificationTextAgain() {
         val standard = ReactionScalePolicy.forScale(ReactionScale.STANDARD)
         val large = ReactionScalePolicy.forScale(ReactionScale.LARGE)
         val extraLarge = ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE)
@@ -65,22 +65,19 @@ class ReactionScalePolicyTest {
         assertEquals(true, large.deckEmojiCssPx < extraLarge.deckEmojiCssPx)
         assertEquals(true, standard.notificationReactionCssPx < large.notificationReactionCssPx)
         assertEquals(true, large.notificationReactionCssPx < extraLarge.notificationReactionCssPx)
-        assertEquals(true, standard.notificationReactionMaxWidthCssPx < large.notificationReactionMaxWidthCssPx)
-        assertEquals(true, large.notificationReactionMaxWidthCssPx < extraLarge.notificationReactionMaxWidthCssPx)
         assertEquals(true, standard.notificationAvatarCssPx < large.notificationAvatarCssPx)
         assertEquals(true, large.notificationAvatarCssPx < extraLarge.notificationAvatarCssPx)
         assertEquals(true, standard.notificationGroupAvatarCssPx < large.notificationGroupAvatarCssPx)
         assertEquals(true, large.notificationGroupAvatarCssPx < extraLarge.notificationGroupAvatarCssPx)
         assertEquals(true, standard.notificationStatusIconCssPx < large.notificationStatusIconCssPx)
         assertEquals(true, large.notificationStatusIconCssPx < extraLarge.notificationStatusIconCssPx)
-        assertEquals(true, standard.notificationGroupSymbolCssPx < large.notificationGroupSymbolCssPx)
-        assertEquals(true, large.notificationGroupSymbolCssPx < extraLarge.notificationGroupSymbolCssPx)
-        assertEquals(true, standard.notificationFontPercent < large.notificationFontPercent)
-        assertEquals(true, large.notificationFontPercent < extraLarge.notificationFontPercent)
+        assertEquals(100, standard.notificationFontPercent)
+        assertEquals(100, large.notificationFontPercent)
+        assertEquals(100, extraLarge.notificationFontPercent)
     }
 
     @Test
-    fun wideReactionsGetAspectRatioHeadroom() {
+    fun wideReactionsKeepAspectRatioHeadroomWithoutUnboundedNotificationRows() {
         ReactionScale.entries.forEach { scale ->
             val metrics = ReactionScalePolicy.forScale(scale)
 
@@ -88,25 +85,22 @@ class ReactionScalePolicyTest {
             assertEquals(true, metrics.notificationReactionMaxWidthCssPx >= metrics.notificationReactionCssPx * 3)
             assertEquals(true, metrics.notificationStatusIconCssPx > 20)
             assertEquals(true, metrics.notificationGroupSymbolCssPx > 15)
+            assertEquals(true, metrics.notificationAvatarCssPx <= 58)
+            assertEquals(true, metrics.notificationGroupAvatarCssPx <= 54)
+            assertEquals(true, metrics.notificationReactionCssPx <= 50)
         }
-
-        val extraLarge = ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE)
-        assertEquals(true, extraLarge.noteEmojiCssPx >= 58)
-        assertEquals(true, extraLarge.notificationReactionCssPx >= 58)
-        assertEquals(true, extraLarge.notificationAvatarCssPx >= 64)
-        assertEquals(true, extraLarge.notificationStatusIconCssPx >= 42)
     }
 
     @Test
-    fun notificationSurfacesHaveVisibleModeSeparation() {
+    fun notificationSurfacesHaveVisibleButCompactModeSeparation() {
         val standard = ReactionScalePolicy.forScale(ReactionScale.STANDARD)
         val large = ReactionScalePolicy.forScale(ReactionScale.LARGE)
         val extraLarge = ReactionScalePolicy.forScale(ReactionScale.EXTRA_LARGE)
 
         assertEquals(true, large.notificationReactionCssPx - standard.notificationReactionCssPx >= 8)
-        assertEquals(true, extraLarge.notificationReactionCssPx - large.notificationReactionCssPx >= 10)
-        assertEquals(true, large.notificationAvatarCssPx - standard.notificationAvatarCssPx >= 8)
-        assertEquals(true, extraLarge.notificationAvatarCssPx - large.notificationAvatarCssPx >= 10)
+        assertEquals(true, extraLarge.notificationReactionCssPx - large.notificationReactionCssPx >= 8)
+        assertEquals(true, large.notificationAvatarCssPx - standard.notificationAvatarCssPx >= 6)
+        assertEquals(true, extraLarge.notificationAvatarCssPx - large.notificationAvatarCssPx >= 6)
     }
 
     @Test
