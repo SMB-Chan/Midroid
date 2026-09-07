@@ -25,13 +25,13 @@
     <string name="text_scale_145_description">Midroid内蔵設定で最大の文字サイズです。</string>
     <string name="text_scale_auto_current">%1$s（この端末では%2$d%%）\n%3$s</string>
     <string name="reaction_size">リアクションサイズ</string>
-    <string name="reaction_size_description">文字サイズとは独立して、リアクションボタン・絵文字・タップ領域だけを変更します。</string>
+    <string name="reaction_size_description">文字サイズとは独立して、タイムライン上のリアクションに加え、リアクションデッキ／ピッカー内の絵文字セルとタップ領域も変更します。</string>
     <string name="reaction_standard_title">標準</string>
-    <string name="reaction_standard_description">52px。画面の情報量を保ちながら押しやすいサイズです。</string>
+    <string name="reaction_standard_description">リアクション52px、デッキ／ピッカー48px。画面の情報量を保ちながら押しやすいサイズです。</string>
     <string name="reaction_large_title">大</string>
-    <string name="reaction_large_description">60px。見やすさと押しやすさを重視した推奨サイズです。</string>
+    <string name="reaction_large_description">リアクション60px、デッキ／ピッカー56px。見やすさと押しやすさを重視した推奨サイズです。</string>
     <string name="reaction_extra_large_title">特大</string>
-    <string name="reaction_extra_large_description">68px。視認性を最優先した最大サイズです。</string>
+    <string name="reaction_extra_large_description">リアクション68px、デッキ／ピッカー64px。視認性を最優先した最大サイズです。</string>
     <string name="open_misskey">Misskeyを開く</string>
     <string name="webview_provider_unavailable">WebViewプロバイダー：利用できません</string>
     <string name="webview_provider">WebViewプロバイダー：%1$s %2$s</string>
