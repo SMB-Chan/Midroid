@@ -17,7 +17,19 @@ class MisskeyUiTuner {
                 document.documentElement.appendChild(style);
               }
 
-              style.textContent = `
+              const supportsHas = !!window.CSS?.supports?.('selector(:has(*))');
+              const pickerSelectors = [
+                '.omfetrab',
+                '[role="dialog"]:has(button._button.item)',
+                '[class*="emoji"]:has(button._button.item)',
+              ];
+              const pickerRoot = supportsHas
+                ? pickerSelectors.find((selector) => {
+                    try { return document.querySelector(selector); } catch (_) { return false; }
+                  }) ?? null
+                : '.omfetrab';
+
+              const hasRules = supportsHas ? `
                 /* Reactions already attached to notes. */
                 button._button:has(> [style*="pointer-events: none"] + span) {
                   height: ${metrics.buttonHeightCssPx}px !important;
@@ -53,12 +65,6 @@ class MisskeyUiTuner {
                   margin-left: 6px !important;
                 }
 
-                /*
-                 * MkNotification uses MkReactionIcon with this stable inline-style signature
-                 * for both single reaction notifications and grouped reaction entries.
-                 * Grow the icon and its immediate holder together so it is not clipped by
-                 * Misskey's native ~20px notification reaction container.
-                 */
                 :is(div, span):has(> [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"]) {
                   width: ${metrics.notificationEmojiCssPx}px !important;
                   min-width: ${metrics.notificationEmojiCssPx}px !important;
@@ -67,7 +73,9 @@ class MisskeyUiTuner {
                   line-height: ${metrics.notificationEmojiCssPx}px !important;
                   overflow: visible !important;
                 }
+              ` : '';
 
+              const notificationFallback = `
                 [style*="width: 100%"][style*="height: 100%"][style*="object-fit: contain"] {
                   display: inline-flex !important;
                   align-items: center !important;
@@ -82,72 +90,68 @@ class MisskeyUiTuner {
                   line-height: 1 !important;
                   object-fit: contain !important;
                 }
-
-                /*
-                 * Misskey's picker/deck was designed around its original emoji cell size.
-                 * Enlarging only the cells can make the popup wider than the visual viewport.
-                 * Keep the picker itself bounded by the dynamic viewport and let item rows
-                 * reflow to fewer columns instead of overflowing horizontally.
-                 */
-                .omfetrab {
-                  box-sizing: border-box !important;
-                  width: min(100%, calc(100dvw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))) !important;
-                  max-width: calc(100dvw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
-                  margin-left: auto !important;
-                  margin-right: auto !important;
-                  overflow-x: hidden !important;
-                  overscroll-behavior-x: none !important;
-                }
-
-                .omfetrab * {
-                  box-sizing: border-box !important;
-                  max-width: 100%;
-                }
-
-                .omfetrab :has(> button._button.item) {
-                  display: grid !important;
-                  grid-template-columns: repeat(auto-fill, minmax(${metrics.deckCellCssPx}px, ${metrics.deckCellCssPx}px)) !important;
-                  justify-content: space-around !important;
-                  justify-items: center !important;
-                  align-items: center !important;
-                  gap: 4px !important;
-                  width: 100% !important;
-                  min-width: 0 !important;
-                  max-width: 100% !important;
-                  overflow-x: hidden !important;
-                }
-
-                .omfetrab button._button.item {
-                  width: ${metrics.deckCellCssPx}px !important;
-                  min-width: 0 !important;
-                  max-width: ${metrics.deckCellCssPx}px !important;
-                  height: ${metrics.deckCellCssPx}px !important;
-                  min-height: ${metrics.deckCellCssPx}px !important;
-                  padding: 4px !important;
-                  box-sizing: border-box !important;
-                }
-
-                .omfetrab button._button.item > .emoji {
-                  width: ${metrics.deckEmojiCssPx}px !important;
-                  max-width: ${metrics.deckEmojiCssPx}px !important;
-                  height: ${metrics.deckEmojiCssPx}px !important;
-                  max-height: ${metrics.deckEmojiCssPx}px !important;
-                  font-size: ${metrics.deckEmojiCssPx}px !important;
-                  object-fit: contain !important;
-                }
-
-                @media (max-width: 420px) {
-                  .omfetrab {
-                    width: calc(100dvw - 12px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
-                    max-width: calc(100dvw - 12px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
-                  }
-
-                  .omfetrab :has(> button._button.item) {
-                    justify-content: space-evenly !important;
-                    column-gap: 2px !important;
-                  }
-                }
               `;
+
+              let pickerRules = '';
+              if (pickerRoot) {
+                pickerRules = `
+                  ${pickerRoot} {
+                    box-sizing: border-box !important;
+                    width: min(100%, calc(100dvw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))) !important;
+                    max-width: calc(100dvw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
+                    margin-left: auto !important;
+                    margin-right: auto !important;
+                    overflow-x: hidden !important;
+                    overscroll-behavior-x: none !important;
+                  }
+
+                  ${pickerRoot} * {
+                    box-sizing: border-box !important;
+                    max-width: 100%;
+                  }
+
+                  ${supportsHas ? `${pickerRoot} :has(> button._button.item) {
+                    display: grid !important;
+                    grid-template-columns: repeat(auto-fill, minmax(${metrics.deckCellCssPx}px, ${metrics.deckCellCssPx}px)) !important;
+                    justify-content: space-around !important;
+                    justify-items: center !important;
+                    align-items: center !important;
+                    gap: 4px !important;
+                    width: 100% !important;
+                    min-width: 0 !important;
+                    max-width: 100% !important;
+                    overflow-x: hidden !important;
+                  }` : ''}
+
+                  ${pickerRoot} button._button.item {
+                    width: ${metrics.deckCellCssPx}px !important;
+                    min-width: 0 !important;
+                    max-width: ${metrics.deckCellCssPx}px !important;
+                    height: ${metrics.deckCellCssPx}px !important;
+                    min-height: ${metrics.deckCellCssPx}px !important;
+                    padding: 4px !important;
+                    box-sizing: border-box !important;
+                  }
+
+                  ${pickerRoot} button._button.item > .emoji {
+                    width: ${metrics.deckEmojiCssPx}px !important;
+                    max-width: ${metrics.deckEmojiCssPx}px !important;
+                    height: ${metrics.deckEmojiCssPx}px !important;
+                    max-height: ${metrics.deckEmojiCssPx}px !important;
+                    font-size: ${metrics.deckEmojiCssPx}px !important;
+                    object-fit: contain !important;
+                  }
+
+                  @media (max-width: 420px) {
+                    ${pickerRoot} {
+                      width: calc(100dvw - 12px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
+                      max-width: calc(100dvw - 12px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
+                    }
+                  }
+                `;
+              }
+
+              style.textContent = hasRules + notificationFallback + pickerRules;
             })();
             """.trimIndent(),
             null,
