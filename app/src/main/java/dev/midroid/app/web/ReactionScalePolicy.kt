@@ -9,11 +9,18 @@ data class ReactionScaleMetrics(
     val noteEmojiCssPx: Int,
     val deckCellCssPx: Int,
     val deckEmojiCssPx: Int,
-    val notificationEmojiCssPx: Int,
+    val notificationReactionCssPx: Int,
     val notificationAvatarCssPx: Int,
-    val notificationGroupItemCssPx: Int,
+    val notificationGroupAvatarCssPx: Int,
+    val notificationReactionGapCssPx: Int,
     val notificationFontPercent: Int,
-)
+) {
+    val notificationHeadLaneCssPx: Int
+        get() = notificationAvatarCssPx + notificationReactionGapCssPx + notificationReactionCssPx
+
+    val notificationGroupLaneCssPx: Int
+        get() = notificationGroupAvatarCssPx + notificationReactionGapCssPx + notificationReactionCssPx
+}
 
 object ReactionScalePolicy {
     fun forScale(scale: ReactionScale): ReactionScaleMetrics {
@@ -25,9 +32,10 @@ object ReactionScalePolicy {
                 noteEmojiCssPx = 36,
                 deckCellCssPx = 48,
                 deckEmojiCssPx = 32,
-                notificationEmojiCssPx = 24,
+                notificationReactionCssPx = 32,
                 notificationAvatarCssPx = 44,
-                notificationGroupItemCssPx = 44,
+                notificationGroupAvatarCssPx = 44,
+                notificationReactionGapCssPx = 6,
                 notificationFontPercent = 100,
             )
             ReactionScale.LARGE -> ReactionScaleMetrics(
@@ -37,9 +45,10 @@ object ReactionScalePolicy {
                 noteEmojiCssPx = 44,
                 deckCellCssPx = 56,
                 deckEmojiCssPx = 40,
-                notificationEmojiCssPx = 30,
+                notificationReactionCssPx = 40,
                 notificationAvatarCssPx = 50,
-                notificationGroupItemCssPx = 50,
+                notificationGroupAvatarCssPx = 50,
+                notificationReactionGapCssPx = 8,
                 notificationFontPercent = 108,
             )
             ReactionScale.EXTRA_LARGE -> ReactionScaleMetrics(
@@ -49,9 +58,10 @@ object ReactionScalePolicy {
                 noteEmojiCssPx = 52,
                 deckCellCssPx = 64,
                 deckEmojiCssPx = 48,
-                notificationEmojiCssPx = 36,
+                notificationReactionCssPx = 48,
                 notificationAvatarCssPx = 58,
-                notificationGroupItemCssPx = 58,
+                notificationGroupAvatarCssPx = 58,
+                notificationReactionGapCssPx = 8,
                 notificationFontPercent = 116,
             )
         }
