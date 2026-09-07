@@ -1,5 +1,6 @@
 package dev.midroid.app
 
+import android.app.AlertDialog
 import android.app.DownloadManager
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -8,14 +9,15 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
-import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.widget.Button
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -26,6 +28,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.webkit.WebViewFeature
+import dev.midroid.app.config.AccountProfile
+import dev.midroid.app.config.AccountRegistry
 import dev.midroid.app.config.AppPreferences
 import dev.midroid.app.config.InstanceConfig
 import dev.midroid.app.config.ReactionScale
@@ -46,11 +51,14 @@ import dev.midroid.app.web.WebViewFactory
 
 class MainActivity : ComponentActivity() {
     private lateinit var preferences: AppPreferences
+    private lateinit var accountRegistry: AccountRegistry
     private val powerController = WebViewPowerController()
     private val navigationState = NavigationState()
     private val uiTuner = MisskeyUiTuner()
     private val mediaFallbackBridge = MisskeyMediaFallbackBridge()
 
+    private var accounts: List<AccountProfile> = emptyList()
+    private var currentAccount: AccountProfile? = null
     private var webView: WebView? = null
     private var browserRoot: LinearLayout? = null
     private var nativeAudioPlayer: NativeAudioPlayerDialog? = null
@@ -75,19 +83,24 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         preferences = AppPreferences(this)
+        accountRegistry = AccountRegistry(this)
         installBackHandler()
 
-        currentInstance = preferences.loadInstance()
         currentMode = preferences.loadPowerMode()
         currentTextScale = preferences.loadTextScale()
         currentReactionScale = preferences.loadReactionScale()
+
+        accounts = accountRegistry.loadOrMigrate(preferences.loadInstance())
+        currentAccount = accountRegistry.activeAccount(accounts)
+        currentInstance = currentAccount?.instanceConfig()
+
         RuntimeDiagnostics.logAppStart(this, currentMode, currentInstance?.origin)
 
-        val instance = currentInstance
-        if (instance == null) {
+        val account = currentAccount
+        if (account == null || currentInstance == null) {
             showSetup()
         } else {
-            showBrowser(instance.origin)
+            showBrowser(account.restoreUrl())
         }
     }
 
@@ -111,6 +124,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        persistCurrentUrl()
         RuntimeDiagnostics.logLifecycle(
             this,
             "hidden",
@@ -133,6 +147,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        persistCurrentUrl()
         nativeAudioPlayer?.dismiss()
         nativeAudioPlayer = null
         destroyWebView()
@@ -179,9 +194,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showSetup() {
+        persistCurrentUrl()
         nativeAudioPlayer?.dismiss()
         nativeAudioPlayer = null
         destroyWebView()
+
+        val editingExisting = currentAccount != null
         val screen = SetupScreen(
             activity = this,
             initialUrl = currentInstance?.origin.orEmpty(),
@@ -189,23 +207,142 @@ class MainActivity : ComponentActivity() {
             initialTextScale = currentTextScale,
             initialReactionScale = currentReactionScale,
             onCopyDiagnostics = ::copyDiagnostics,
+            instanceEditable = !editingExisting,
         ) { rawUrl, mode, textScale, reactionScale ->
             InstanceConfig.parse(rawUrl).fold(
-                onSuccess = { instance ->
+                onSuccess = { parsedInstance ->
+                    val account = if (editingExisting) {
+                        currentAccount ?: return@fold getString(R.string.invalid_instance_url)
+                    } else {
+                        accountRegistry.addDefault(parsedInstance).also {
+                            accounts = accountRegistry.loadAccounts()
+                            currentAccount = it
+                        }
+                    }
+                    val instance = account.instanceConfig()
+                        ?: return@fold getString(R.string.invalid_instance_url)
+
                     currentInstance = instance
                     currentMode = mode
                     currentTextScale = textScale
                     currentReactionScale = reactionScale
                     preferences.save(instance, mode, textScale, reactionScale)
-                    showBrowser(instance.origin)
+                    showBrowser(account.restoreUrl())
                     null
                 },
                 onFailure = { error ->
-                    error.message ?: "Invalid instance URL."
+                    error.message ?: getString(R.string.invalid_instance_url)
                 },
             )
         }
         setInsetContentView(screen)
+    }
+
+    private fun showAccountSwitcher() {
+        persistCurrentUrl()
+        accounts = accountRegistry.loadAccounts()
+        if (accounts.isEmpty()) {
+            showSetup()
+            return
+        }
+
+        val activeId = currentAccount?.id
+        val labels = accounts.map { account ->
+            val marker = if (account.id == activeId) "✓ " else ""
+            "$marker${account.displayLabel()}\n${account.instanceOrigin}"
+        }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.accounts)
+            .setItems(labels) { _, index -> switchAccount(accounts[index]) }
+            .setPositiveButton(R.string.add_account) { _, _ -> showAddAccountDialog() }
+            .setNegativeButton(R.string.close, null)
+            .show()
+    }
+
+    private fun showAddAccountDialog() {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            Toast.makeText(this, R.string.multi_profile_unsupported, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+        }
+        container.addView(TextView(this).apply {
+            text = getString(R.string.add_account_description)
+            setPadding(0, 0, 0, dp(12))
+        })
+        val input = EditText(this).apply {
+            hint = getString(R.string.misskey_instance_hint)
+            setSingleLine(true)
+        }
+        container.addView(
+            input,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.add_account)
+            .setView(container)
+            .setPositiveButton(R.string.add_account, null)
+            .setNegativeButton(R.string.cancel, null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                InstanceConfig.parse(input.text.toString()).fold(
+                    onSuccess = { instance ->
+                        persistCurrentUrl()
+                        nativeAudioPlayer?.dismiss()
+                        nativeAudioPlayer = null
+                        val account = accountRegistry.addIsolated(instance)
+                        accounts = accountRegistry.loadAccounts()
+                        currentAccount = account
+                        currentInstance = instance
+                        preferences.save(instance, currentMode, currentTextScale, currentReactionScale)
+                        dialog.dismiss()
+                        Toast.makeText(this, R.string.account_added, Toast.LENGTH_SHORT).show()
+                        showBrowser(instance.origin)
+                    },
+                    onFailure = { error ->
+                        input.error = error.message ?: getString(R.string.invalid_instance_url)
+                    },
+                )
+            }
+        }
+        dialog.show()
+    }
+
+    private fun switchAccount(account: AccountProfile) {
+        if (account.id == currentAccount?.id) return
+        if (
+            account.profileName != null &&
+            !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)
+        ) {
+            Toast.makeText(this, R.string.multi_profile_unsupported, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        persistCurrentUrl()
+        nativeAudioPlayer?.dismiss()
+        nativeAudioPlayer = null
+        val instance = account.instanceConfig() ?: return
+        accountRegistry.setActive(account.id)
+        currentAccount = account
+        currentInstance = instance
+        preferences.save(instance, currentMode, currentTextScale, currentReactionScale)
+        showBrowser(account.restoreUrl())
+    }
+
+    private fun persistCurrentUrl() {
+        val account = currentAccount ?: return
+        val url = navigationState.currentUrl ?: lastKnownUrl ?: return
+        accountRegistry.updateLastUrl(account.id, url)
     }
 
     private fun copyDiagnostics() {
@@ -220,17 +357,35 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showBrowser(url: String) {
-        val instance = currentInstance ?: return
+        val account = currentAccount ?: return
+        val instance = account.instanceConfig() ?: return
+        currentInstance = instance
+
+        if (
+            account.profileName != null &&
+            !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)
+        ) {
+            Toast.makeText(this, R.string.multi_profile_unsupported, Toast.LENGTH_LONG).show()
+            return
+        }
+
         destroyWebView()
-        lastKnownUrl = url
-        navigationState.reset(url)
+        val safeUrl = url.takeIf(instance::owns) ?: instance.origin
+        lastKnownUrl = safeUrl
+        navigationState.reset(safeUrl)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
         browserRoot = root
 
-        val created = WebViewFactory.create(this)
+        val created = runCatching {
+            WebViewFactory.create(this, account.profileName)
+        }.getOrElse {
+            Toast.makeText(this, R.string.multi_profile_unsupported, Toast.LENGTH_LONG).show()
+            browserRoot = null
+            return
+        }
         webView = created
 
         applyTextScale(created)
@@ -244,9 +399,11 @@ class MainActivity : ComponentActivity() {
             onMainFrameCommitted = { committedUrl ->
                 navigationState.onPageCommitted(committedUrl)
                 lastKnownUrl = committedUrl
+                accountRegistry.updateLastUrl(account.id, committedUrl)
             },
             onHistoryChanged = { historyUrl ->
                 navigationState.onHistoryChanged(historyUrl)
+                accountRegistry.updateLastUrl(account.id, historyUrl)
                 mediaFallbackBridge.install(created)
             },
             onPageReady = { view, finishedUrl ->
@@ -261,7 +418,22 @@ class MainActivity : ComponentActivity() {
         )
         created.webChromeClient = MidroidWebChromeClient(::launchFileChooser)
         created.setDownloadListener { downloadUrl, userAgent, contentDisposition, mimeType, _ ->
-            enqueueDownload(downloadUrl, userAgent, contentDisposition, mimeType)
+            enqueueDownload(created, downloadUrl, userAgent, contentDisposition, mimeType)
+        }
+
+        val accountButton = Button(this).apply {
+            text = "⇄"
+            contentDescription = getString(R.string.switch_account)
+            textSize = 18f
+            alpha = 0.8f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(0xAA202124.toInt())
+            minWidth = dp(48)
+            minimumWidth = dp(48)
+            minHeight = dp(48)
+            minimumHeight = dp(48)
+            setPadding(0, 0, 0, 0)
+            setOnClickListener { showAccountSwitcher() }
         }
 
         val nativeAudioButton = Button(this).apply {
@@ -309,10 +481,13 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(TextView(this@MainActivity).apply {
-                text = getString(R.string.app_name)
+                text = "${getString(R.string.app_name)} · ${account.displayLabel()}"
                 textSize = 16f
-                setPadding(dp(16), 0, 0, 0)
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                setPadding(dp(16), 0, dp(4), 0)
             }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(accountButton, LinearLayout.LayoutParams(dp(48), dp(48)))
             addView(nativeAudioButton, LinearLayout.LayoutParams(dp(48), dp(48)))
             addView(settingsButton, LinearLayout.LayoutParams(dp(48), dp(48)))
         }
@@ -326,7 +501,7 @@ class MainActivity : ComponentActivity() {
         )
 
         setInsetContentView(root)
-        created.loadUrl(url)
+        created.loadUrl(safeUrl)
         if (visibleToUser) powerController.onForeground(this, created, currentMode)
     }
 
@@ -335,7 +510,7 @@ class MainActivity : ComponentActivity() {
         sourceWebView.settings.userAgentString
             ?.takeIf { it.isNotBlank() }
             ?.let { headers["User-Agent"] = it }
-        CookieManager.getInstance().getCookie(request.sourceUrl)
+        WebViewFactory.cookieManagerFor(sourceWebView).getCookie(request.sourceUrl)
             ?.takeIf { it.isNotBlank() }
             ?.let { headers["Cookie"] = it }
 
@@ -402,6 +577,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun enqueueDownload(
+        sourceWebView: WebView,
         url: String,
         userAgent: String?,
         contentDisposition: String?,
@@ -419,7 +595,9 @@ class MainActivity : ComponentActivity() {
 
             if (!mimeType.isNullOrBlank()) request.setMimeType(mimeType)
             if (!userAgent.isNullOrBlank()) request.addRequestHeader("User-Agent", userAgent)
-            CookieManager.getInstance().getCookie(url)?.let { request.addRequestHeader("Cookie", it) }
+            WebViewFactory.cookieManagerFor(sourceWebView)
+                .getCookie(url)
+                ?.let { request.addRequestHeader("Cookie", it) }
             if (!contentDisposition.isNullOrBlank()) {
                 request.setTitle(android.webkit.URLUtil.guessFileName(url, contentDisposition, mimeType))
             }
