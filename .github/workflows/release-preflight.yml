@@ -1,0 +1,139 @@
+name: Signed APK Release Preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signed-release-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require main branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_NAME" != "main" ]]; then
+            echo "Signed preflight must run from main; selected ref is $GITHUB_REF_NAME." >&2
+            exit 1
+          fi
+
+      - name: Prepare preflight version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_code="$(tools/release_version_code.sh "$GITHUB_RUN_NUMBER")"
+          version_name="0.1.0-preflight.${GITHUB_RUN_NUMBER}"
+          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+          echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
+          echo "MIDROID_VERSION_CODE=$version_code" >> "$GITHUB_ENV"
+          echo "MIDROID_VERSION_NAME=$version_name" >> "$GITHUB_ENV"
+
+      - name: Prepare stable release signing file
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.MIDROID_SIGNING_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.MIDROID_SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MIDROID_SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MIDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEYSTORE_B64" || -z "$STORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
+            echo "Stable Midroid signing secrets are incomplete. Refusing to build a preflight APK." >&2
+            exit 1
+          fi
+          keystore="$RUNNER_TEMP/midroid-update.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$keystore"
+          chmod 600 "$keystore"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+          log-accepted-android-sdk-licenses: false
+
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 9.6.0
+
+      - name: Validate release tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tools/benchmark_android.sh
+          bash -n tools/bootstrap_update_signing.sh
+          bash -n tools/release_version_code.sh
+          bash -n tools/test_release_version_code.sh
+          bash tools/test_release_version_code.sh
+
+      - name: Verify and build signed preflight APK
+        env:
+          MIDROID_SIGNING_STORE_FILE: ${{ runner.temp }}/midroid-update.jks
+          MIDROID_SIGNING_STORE_PASSWORD: ${{ secrets.MIDROID_SIGNING_STORE_PASSWORD }}
+          MIDROID_SIGNING_KEY_ALIAS: ${{ secrets.MIDROID_SIGNING_KEY_ALIAS }}
+          MIDROID_SIGNING_KEY_PASSWORD: ${{ secrets.MIDROID_SIGNING_KEY_PASSWORD }}
+        run: gradle --no-daemon --stacktrace lint testDebugUnitTest assembleRelease
+
+      - name: Remove release keystore
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/midroid-update.jks"
+
+      - name: Verify signing identity and prepare preflight assets
+        id: assets
+        shell: bash
+        env:
+          EXPECTED_RELEASE_CERT_SHA256: d6540699dafc1c37764948e1efed476580162c0add4b1a2b18cd6854cc5206c6
+        run: |
+          set -euo pipefail
+          source_apk="app/build/outputs/apk/release/app-release.apk"
+          test -f "$source_apk"
+
+          out="$RUNNER_TEMP/midroid-preflight"
+          mkdir -p "$out"
+          apk="$out/Midroid-${{ steps.version.outputs.version_name }}.apk"
+          sha="$apk.sha256"
+          cert="$out/Midroid-${{ steps.version.outputs.version_name }}.signing.txt"
+          code="$out/Midroid-${{ steps.version.outputs.version_name }}.version-code.txt"
+          cp "$source_apk" "$apk"
+          printf '%s\n' "${{ steps.version.outputs.version_code }}" > "$code"
+
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" | tee "$cert"
+          actual_cert="$(awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print tolower($2); exit}' "$cert")"
+          if [[ "$actual_cert" != "$EXPECTED_RELEASE_CERT_SHA256" ]]; then
+            echo "Release certificate mismatch. Refusing to expose the preflight APK." >&2
+            exit 1
+          fi
+          (
+            cd "$out"
+            sha256sum "$(basename "$apk")"
+          ) | tee "$sha"
+
+          echo "out=$out" >> "$GITHUB_OUTPUT"
+
+      - name: Upload signed preflight artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Midroid-signed-release-preflight-${{ github.run_number }}
+          path: ${{ steps.assets.outputs.out }}/*
+          if-no-files-found: error
+          retention-days: 7
