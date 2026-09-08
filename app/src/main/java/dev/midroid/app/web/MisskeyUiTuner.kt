@@ -67,10 +67,6 @@ class MisskeyUiTuner {
                   const subIcon = head.children.item(1);
                   if (!(subIcon instanceof HTMLDivElement)) return;
 
-                  // MkNotification has a sticky head and an absolutely positioned sub icon.
-                  // Require that signature on first discovery so nested note headers cannot be
-                  // mistaken for notification roots. Already-marked rows are allowed through
-                  // because Midroid may have changed their computed styles on a previous pass.
                   if (root.dataset.midroidNotification !== '1') {
                     const headStyle = window.getComputedStyle(head);
                     const subIconStyle = window.getComputedStyle(subIcon);
@@ -108,11 +104,6 @@ class MisskeyUiTuner {
                   }
 
                   clearGroupedMarkers(tail);
-
-                  // Only a reaction:grouped notification has a plus/heart group glyph.
-                  // Scanning every notification tail used to misclassify custom emoji in an
-                  // ordinary reacted note as grouped reaction UI and caused the mixed broken
-                  // layouts seen on real devices.
                   if (!isReactionGroup) return;
 
                   const groupedLists = new Map();
@@ -286,9 +277,6 @@ class MisskeyUiTuner {
                   box-shadow: 0 0 0 2px var(--MI_THEME-panel) !important;
                 }
 
-                /* A single reaction stays in the head's vertical footprint. The reaction grows
-                   outward into a reserved horizontal wing instead of stacking below the avatar,
-                   so it cannot inflate the whole notification row or push the header/time away. */
                 [data-midroid-notification-head="1"][data-midroid-notification-reaction-head="1"] {
                   position: sticky !important;
                   top: 0 !important;
@@ -386,7 +374,7 @@ class MisskeyUiTuner {
                   flex: 0 0 ${metrics.notificationGroupAvatarCssPx}px !important;
                   width: ${metrics.notificationGroupAvatarCssPx}px !important;
                   min-width: ${metrics.notificationGroupAvatarCssPx}px !important;
-                  max-width: ${metrics.notificationGroupAvatarCssPxPx}px !important;
+                  max-width: ${metrics.notificationGroupAvatarCssPx}px !important;
                   height: ${metrics.notificationGroupAvatarCssPx}px !important;
                   min-height: ${metrics.notificationGroupAvatarCssPx}px !important;
                   max-height: ${metrics.notificationGroupAvatarCssPx}px !important;
