@@ -25,16 +25,30 @@ class MisskeyUiTuner {
                 ? ':is(.omfetrab, [role="dialog"]:has(button._button.item), [class*="emoji"]:has(button._button.item))'
                 : '.omfetrab';
 
+              const reactionGraphicSelector =
+                '[style*="object-fit: contain"], img[alt^=":"], img[src*="/emoji/"], img[src*="emoji"]';
+
               const markReactionGraphic = (container, marker) => {
                 if (!(container instanceof HTMLElement)) return null;
-                const graphic = container.querySelector(
-                  '[style*="object-fit: contain"], img[alt^=":"], img[src*="/emoji/"], img[src*="emoji"]'
-                );
+                const graphic = container.querySelector(reactionGraphicSelector);
                 if (graphic instanceof HTMLElement) {
                   graphic.dataset[marker] = '1';
                   return graphic;
                 }
                 return null;
+              };
+
+              const clearGroupedMarkers = (tail) => {
+                tail.querySelectorAll(
+                  '[data-midroid-grouped-reaction-list], [data-midroid-grouped-reaction-item], [data-midroid-grouped-reaction-avatar], [data-midroid-grouped-reaction], [data-midroid-grouped-reaction-graphic]'
+                ).forEach((node) => {
+                  if (!(node instanceof HTMLElement)) return;
+                  delete node.dataset.midroidGroupedReactionList;
+                  delete node.dataset.midroidGroupedReactionItem;
+                  delete node.dataset.midroidGroupedReactionAvatar;
+                  delete node.dataset.midroidGroupedReaction;
+                  delete node.dataset.midroidGroupedReactionGraphic;
+                });
               };
 
               const markNotifications = () => {
@@ -53,6 +67,12 @@ class MisskeyUiTuner {
                   const subIcon = head.children.item(1);
                   if (!(subIcon instanceof HTMLDivElement)) return;
 
+                  if (root.dataset.midroidNotification !== '1') {
+                    const headStyle = window.getComputedStyle(head);
+                    const subIconStyle = window.getComputedStyle(subIcon);
+                    if (headStyle.position !== 'sticky' || subIconStyle.position !== 'absolute') return;
+                  }
+
                   root.dataset.midroidNotification = '1';
                   head.dataset.midroidNotificationHead = '1';
                   tail.dataset.midroidNotificationTail = '1';
@@ -60,6 +80,7 @@ class MisskeyUiTuner {
                   subIcon.dataset.midroidNotificationSubicon = '1';
                   time.dataset.midroidNotificationTime = '1';
 
+                  let isReactionGroup = false;
                   const icon = head.firstElementChild;
                   if (icon instanceof HTMLElement) {
                     icon.dataset.midroidNotificationIcon = '1';
@@ -67,6 +88,7 @@ class MisskeyUiTuner {
                     if (groupGlyph instanceof HTMLElement) {
                       groupGlyph.dataset.midroidNotificationGroupGlyph = '1';
                     }
+                    isReactionGroup = icon.querySelector('i.ti-plus, i.ti-heart') instanceof HTMLElement;
                   }
 
                   const reactionGraphic = markReactionGraphic(
@@ -81,22 +103,11 @@ class MisskeyUiTuner {
                     delete subIcon.dataset.midroidNotificationReaction;
                   }
 
-                  tail.querySelectorAll(
-                    '[data-midroid-grouped-reaction-list], [data-midroid-grouped-reaction-item], [data-midroid-grouped-reaction-avatar], [data-midroid-grouped-reaction], [data-midroid-grouped-reaction-graphic]'
-                  ).forEach((node) => {
-                    if (!(node instanceof HTMLElement)) return;
-                    delete node.dataset.midroidGroupedReactionList;
-                    delete node.dataset.midroidGroupedReactionItem;
-                    delete node.dataset.midroidGroupedReactionAvatar;
-                    delete node.dataset.midroidGroupedReaction;
-                    delete node.dataset.midroidGroupedReactionGraphic;
-                  });
+                  clearGroupedMarkers(tail);
+                  if (!isReactionGroup) return;
 
                   const groupedLists = new Map();
-                  const groupedGraphics = tail.querySelectorAll(
-                    '[style*="object-fit: contain"], img[alt^=":"], img[src*="/emoji/"], img[src*="emoji"]'
-                  );
-                  groupedGraphics.forEach((candidate) => {
+                  tail.querySelectorAll(reactionGraphicSelector).forEach((candidate) => {
                     if (!(candidate instanceof HTMLElement)) return;
 
                     let reaction = candidate.parentElement;
@@ -104,7 +115,7 @@ class MisskeyUiTuner {
                     let avatar = null;
                     for (let depth = 0; depth < 4 && reaction instanceof HTMLElement; depth += 1) {
                       const parent = reaction.parentElement;
-                      if (!(parent instanceof HTMLElement)) break;
+                      if (!(parent instanceof HTMLElement) || !tail.contains(parent)) break;
                       if (parent.children.length === 2 && parent.lastElementChild === reaction) {
                         const avatarCandidate = parent.firstElementChild;
                         if (avatarCandidate instanceof HTMLElement) {
@@ -129,7 +140,7 @@ class MisskeyUiTuner {
                     reaction.dataset.midroidGroupedReaction = '1';
 
                     const list = item.parentElement;
-                    if (list instanceof HTMLElement) {
+                    if (list instanceof HTMLElement && tail.contains(list)) {
                       groupedLists.set(list, (groupedLists.get(list) ?? 0) + 1);
                     }
                   });
@@ -267,22 +278,22 @@ class MisskeyUiTuner {
                 }
 
                 [data-midroid-notification-head="1"][data-midroid-notification-reaction-head="1"] {
-                  display: inline-flex !important;
-                  flex-direction: column !important;
-                  align-items: center !important;
-                  width: max-content !important;
+                  position: sticky !important;
+                  top: 0 !important;
+                  display: block !important;
+                  width: ${metrics.notificationAvatarCssPx}px !important;
                   min-width: ${metrics.notificationAvatarCssPx}px !important;
-                  max-width: ${metrics.notificationReactionMaxWidthCssPx}px !important;
-                  height: auto !important;
-                  min-height: ${metrics.notificationAvatarCssPx + metrics.notificationReactionGapCssPx + metrics.notificationReactionCssPx}px !important;
-                  max-height: none !important;
-                  margin-right: 8px !important;
+                  max-width: ${metrics.notificationAvatarCssPx}px !important;
+                  height: ${metrics.notificationAvatarCssPx}px !important;
+                  min-height: ${metrics.notificationAvatarCssPx}px !important;
+                  max-height: ${metrics.notificationAvatarCssPx}px !important;
+                  margin-right: calc(8px + min(${metrics.notificationReactionMaxWidthCssPx}px, 28vw)) !important;
                   overflow: visible !important;
                 }
 
                 [data-midroid-notification-head="1"][data-midroid-notification-reaction-head="1"]
                   > [data-midroid-notification-icon="1"] {
-                  flex: 0 0 ${metrics.notificationAvatarCssPx}px !important;
+                  display: block !important;
                   width: ${metrics.notificationAvatarCssPx}px !important;
                   min-width: ${metrics.notificationAvatarCssPx}px !important;
                   max-width: ${metrics.notificationAvatarCssPx}px !important;
@@ -292,19 +303,22 @@ class MisskeyUiTuner {
                 }
 
                 [data-midroid-notification-reaction="1"] {
-                  position: static !important;
-                  inset: auto !important;
+                  position: absolute !important;
+                  z-index: 2 !important;
+                  left: calc(100% - 8px) !important;
+                  right: auto !important;
+                  top: auto !important;
+                  bottom: 0 !important;
                   display: inline-flex !important;
-                  flex: 0 1 auto !important;
                   align-items: center !important;
-                  justify-content: center !important;
-                  width: auto !important;
-                  min-width: 0 !important;
-                  max-width: ${metrics.notificationReactionMaxWidthCssPx}px !important;
+                  justify-content: flex-start !important;
+                  width: fit-content !important;
+                  min-width: ${metrics.notificationReactionCssPx}px !important;
+                  max-width: min(${metrics.notificationReactionMaxWidthCssPx}px, 28vw) !important;
                   height: ${metrics.notificationReactionCssPx}px !important;
                   min-height: ${metrics.notificationReactionCssPx}px !important;
                   max-height: ${metrics.notificationReactionCssPx}px !important;
-                  margin: ${metrics.notificationReactionGapCssPx}px 0 0 0 !important;
+                  margin: 0 !important;
                   padding: 0 !important;
                   line-height: ${metrics.notificationReactionCssPx}px !important;
                   border-radius: 0 !important;
@@ -317,7 +331,7 @@ class MisskeyUiTuner {
                   display: block !important;
                   width: auto !important;
                   min-width: 0 !important;
-                  max-width: ${metrics.notificationReactionMaxWidthCssPx}px !important;
+                  max-width: min(${metrics.notificationReactionMaxWidthCssPx}px, 28vw) !important;
                   height: ${metrics.notificationReactionCssPx}px !important;
                   min-height: ${metrics.notificationReactionCssPx}px !important;
                   max-height: ${metrics.notificationReactionCssPx}px !important;
