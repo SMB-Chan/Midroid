@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Midroid</string>
+    <string name="app_version">Midroid バージョン：%1$s</string>
     <string name="settings">設定</string>
     <string name="setup_intro">Android System WebViewを基盤に、ライフサイクルを意識して動作するMisskeyランタイムです。</string>
     <string name="misskey_instance">Misskeyインスタンス</string>
