@@ -6,6 +6,16 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 ## [Unreleased]
 
+No unreleased user-facing changes.
+
+## [0.1.4] - 2026-09-08
+
+Patch release finalizing notification scaling and unobtrusive Midroid controls after real-device validation.
+
+### Added
+
+- Show the installed Midroid version directly in the settings screen so users can quickly confirm which build is running.
+
 ### Fixed
 
 - Rework notification scaling to bind to the live `MkNotification` DOM at runtime instead of depending on generated CSS-module structure, and keep the bindings updated as Misskey replaces notification rows in its SPA.
@@ -14,6 +24,8 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 - Remove the persistent Midroid overlay button from above Misskey controls.
 - Replace the physical-edge swipe gesture, which conflicts with Android gesture navigation, with a small inset side handle that can be tapped or dragged inward to open Midroid controls and dragged vertically to a preferred position.
 - Harden grouped-reaction notification detection around the actual avatar/reaction DOM pair and render those pairs as bounded wrapping stacks so enlarged emoji remain associated with the correct user and do not spill into neighboring rows.
+- Restrict grouped-reaction scanning to actual grouped notifications so custom emoji in ordinary notification summaries are not misclassified.
+- Keep single-reaction notifications within the normal notification row height by reserving a horizontal reaction area beside the avatar instead of stacking large reaction artwork below it.
 
 ## [0.1.3] - 2026-09-08
 

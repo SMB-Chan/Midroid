@@ -49,6 +49,15 @@ class SetupScreen(
         }, matchWrap())
 
         content.addView(TextView(activity).apply {
+            val versionName = runCatching {
+                activity.packageManager.getPackageInfo(activity.packageName, 0).versionName
+            }.getOrNull() ?: activity.getString(R.string.unknown)
+            text = activity.getString(R.string.app_version, versionName)
+            textSize = 13f
+            setPadding(0, dp(2), 0, 0)
+        }, matchWrap())
+
+        content.addView(TextView(activity).apply {
             text = activity.getString(R.string.setup_intro)
             textSize = 16f
             setPadding(0, dp(8), 0, dp(28))
