@@ -11,8 +11,8 @@ android {
         applicationId = "jp.example.budsswitch"
         minSdk = 31
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.2.5-mvp"
+        versionCode = 8
+        versionName = "0.2.6-mvp"
     }
 
     buildTypes {
