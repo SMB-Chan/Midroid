@@ -14,6 +14,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -27,7 +28,14 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var output: TextView
     private var remote: ISscPrivilegedProbeService? = null
-    private var pendingProbe = false
+    private var pendingAction = PendingAction.NONE
+
+    private enum class PendingAction { NONE, PROBE, EXPERIMENT }
+
+    private data class ProbeTarget(
+        val device: BluetoothDevice,
+        val selectedAddress: String?
+    )
 
     private val permissionListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
         if (requestCode == REQUEST_CODE) {
@@ -40,9 +48,12 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             remote = ISscPrivilegedProbeService.Stub.asInterface(service)
             status.text = "Shizuku privileged probe: connected / ${runCatching { remote?.ping() }.getOrNull()}"
-            if (pendingProbe) {
-                pendingProbe = false
-                runProbeNow()
+            val action = pendingAction
+            pendingAction = PendingAction.NONE
+            when (action) {
+                PendingAction.PROBE -> runSelectedAction(experiment = false)
+                PendingAction.EXPERIMENT -> runSelectedAction(experiment = true)
+                PendingAction.NONE -> Unit
             }
         }
 
@@ -68,11 +79,11 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
         }
 
         root.addView(TextView(this).apply {
-            text = "SSC Privileged Probe v0.3.2"
+            text = "SSC Privileged Probe v0.3.3"
             textSize = 25f
         })
         root.addView(TextView(this).apply {
-            text = "複数のGalaxy Buds bond entryを誤選択しないよう、BudsSwitch本体で選択済みのBluetoothアドレスだけをShizuku UserService (shell UID) から照会します。状態変更は行いません。"
+            text = "通常Probeは読み取り専用です。因果実験は、BudsSwitch本体で選択済みのGalaxy Budsに対してSSC-UHQ type=8を一時OFFにし、約1.8秒観測後にfinallyで必ずONへ復帰させます。音が一時途切れる可能性があります。"
             textSize = 14f
             setPadding(0, dp(8), 0, dp(12))
         })
@@ -84,9 +95,11 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
         root.addView(status)
 
         val bindButton = Button(this).apply { text = "Shizuku権限 / Probe Service接続" }
-        val probeButton = Button(this).apply { text = "BudsSwitchで選択中のBudsをSSC-UHQ(type=8)照会" }
+        val probeButton = Button(this).apply { text = "選択中のBudsをSSC-UHQ(type=8)照会" }
+        val experimentButton = Button(this).apply { text = "SSC-UHQ因果実験: OFF → ON自動復帰" }
         root.addView(bindButton)
         root.addView(probeButton)
+        root.addView(experimentButton)
 
         output = TextView(this).apply {
             typeface = Typeface.MONOSPACE
@@ -100,30 +113,19 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
 
         Shizuku.addRequestPermissionResultListener(permissionListener)
 
-        bindButton.setOnClickListener {
-            if (!Shizuku.pingBinder()) {
-                status.text = "Shizukuが起動していません"
-            } else if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                Shizuku.requestPermission(REQUEST_CODE)
-            } else {
-                bindProbeService()
-            }
-        }
-
-        probeButton.setOnClickListener {
-            if (remote == null) {
-                pendingProbe = true
-                if (!Shizuku.pingBinder()) {
-                    pendingProbe = false
-                    status.text = "Shizukuが起動していません"
-                } else if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                    Shizuku.requestPermission(REQUEST_CODE)
-                } else {
-                    bindProbeService()
-                }
-            } else {
-                runProbeNow()
-            }
+        bindButton.setOnClickListener { ensureService(PendingAction.NONE) }
+        probeButton.setOnClickListener { ensureService(PendingAction.PROBE) }
+        experimentButton.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("SSC-UHQを一時的にOFFにします")
+                .setMessage(
+                    "type=8が現在supported=true / enabled=trueの場合のみ実行します。" +
+                        " 一時的にOFFへ変更して約1.8秒観測し、その後finallyでONへ復帰します。" +
+                        " 音が一時途切れる可能性があります。実行しますか？"
+                )
+                .setNegativeButton("キャンセル", null)
+                .setPositiveButton("実行") { _, _ -> ensureService(PendingAction.EXPERIMENT) }
+                .show()
         }
 
         if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
@@ -133,31 +135,55 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
         }
     }
 
+    private fun ensureService(action: PendingAction) {
+        if (remote != null) {
+            when (action) {
+                PendingAction.PROBE -> runSelectedAction(experiment = false)
+                PendingAction.EXPERIMENT -> runSelectedAction(experiment = true)
+                PendingAction.NONE -> status.text = "Probe Service接続済み"
+            }
+            return
+        }
+
+        pendingAction = action
+        if (!Shizuku.pingBinder()) {
+            pendingAction = PendingAction.NONE
+            status.text = "Shizukuが起動していません"
+        } else if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+            Shizuku.requestPermission(REQUEST_CODE)
+        } else {
+            bindProbeService()
+        }
+    }
+
     private fun bindProbeService() {
         if (remote != null) return
         val args = Shizuku.UserServiceArgs(
             ComponentName(packageName, SscPrivilegedProbeService::class.java.name)
         )
             .tag("ssc_privileged_probe")
-            .version(2)
+            .version(3)
             .daemon(false)
             .debuggable(true)
             .processNameSuffix("sscprobe")
         status.text = "Probe Service接続中…"
         runCatching { Shizuku.bindUserService(args, connection) }
-            .onFailure { status.text = "Probe Service bind failed: ${it.javaClass.simpleName}: ${it.message}" }
+            .onFailure {
+                pendingAction = PendingAction.NONE
+                status.text = "Probe Service bind failed: ${it.javaClass.simpleName}: ${it.message}"
+            }
     }
 
-    private fun runProbeNow() {
+    private fun resolveTarget(): ProbeTarget? {
         if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             output.text = "BLUETOOTH_CONNECT permissionがありません。BudsSwitch本体でAndroid権限を許可してください。"
-            return
+            return null
         }
 
         val adapter = getSystemService(BluetoothManager::class.java).adapter
         if (adapter == null) {
             output.text = "BluetoothAdapter unavailable"
-            return
+            return null
         }
 
         val buds = runCatching {
@@ -166,12 +192,12 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
                 .sortedBy { it.address }
         }.getOrElse {
             output.text = "bondedDevices取得失敗: ${it.javaClass.simpleName}: ${it.message}"
-            return
+            return null
         }
 
         if (buds.isEmpty()) {
             output.text = "ペアリング済みGalaxy Budsが見つかりません"
-            return
+            return null
         }
 
         val selectedAddress = AppPrefs.selectedDevice(this)
@@ -181,31 +207,38 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
 
         if (device == null) {
             output.text = buildString {
-                appendLine("Probeを中止しました: Galaxy Budsのbond entryが複数あります。")
-                appendLine("BudsSwitch本体でSSCが96kHzになっているBudsを選び、SSC / UHQ Vendor ID分析を1回実行してから戻ってください。")
+                appendLine("実行を中止しました: Galaxy Budsのbond entryが複数あります。")
+                appendLine("BudsSwitch本体でSSCが96kHzになっているBudsを選択してください。")
                 appendLine("savedSelected=${selectedAddress ?: "none"}")
                 appendLine("Buds candidates:")
                 buds.forEach { appendLine("  ${safeName(it)} [${it.address}]") }
-                appendLine("NOTE: v0.3.1はここで先頭entryを選んでいたため誤照会が発生しました。")
             }.trimEnd()
-            return
+            return null
         }
 
+        return ProbeTarget(device, selectedAddress)
+    }
+
+    private fun runSelectedAction(experiment: Boolean) {
+        val target = resolveTarget() ?: return
+        val device = target.device
+        val mode = if (experiment) "因果実験" else "読み取りProbe"
         output.text = buildString {
-            appendLine("Probe target locked to BudsSwitch selection:")
-            appendLine("${safeName(device)} [${device.address}]")
-            appendLine("savedSelected=${selectedAddress ?: "single-buds-fallback"}")
-            appendLine("shell UIDから照会中…")
+            appendLine("target=${safeName(device)} [${device.address}]")
+            appendLine("savedSelected=${target.selectedAddress ?: "single-buds-fallback"}")
+            appendLine("$mode をshell UIDから実行中…")
         }.trimEnd()
 
         Thread {
-            val result = remote?.runCatching { probe(device.address) }
-                ?.getOrElse { "remote probe error: ${it.javaClass.simpleName}: ${it.message}" }
+            val result = remote?.runCatching {
+                if (experiment) runToggleExperiment(device.address) else probe(device.address)
+            }?.getOrElse { "remote error: ${it.javaClass.simpleName}: ${it.message}" }
                 ?: "Probe Service not connected"
+
             runOnUiThread {
                 output.text = buildString {
                     appendLine("target=${safeName(device)} [${device.address}]")
-                    appendLine("savedSelected=${selectedAddress ?: "single-buds-fallback"}")
+                    appendLine("savedSelected=${target.selectedAddress ?: "single-buds-fallback"}")
                     appendLine(result)
                 }.trimEnd()
             }
