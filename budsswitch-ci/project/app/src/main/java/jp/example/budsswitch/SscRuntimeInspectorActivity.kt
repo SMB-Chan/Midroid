@@ -2,7 +2,6 @@ package jp.example.budsswitch
 
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.graphics.Typeface
@@ -31,7 +30,7 @@ class SscRuntimeInspectorActivity : AppCompatActivity() {
         }
         scroll.addView(
             root,
-            ScrollView.LayoutParams(
+            ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
