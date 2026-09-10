@@ -2,7 +2,7 @@ name: BudsSwitch CI
 
 on:
   push:
-    branches: [budsswitch-v027-ci]
+    branches: [budsswitch-v028-ship]
 
 permissions:
   contents: read
@@ -41,17 +41,17 @@ jobs:
           set -euo pipefail
           apk=budsswitch-ci/project/app/build/outputs/apk/debug/app-debug.apk
           test -f "$apk"
-          sha256sum "$apk" | tee /tmp/BudsSwitch-v0.2.7-debug.apk.sha256
-          cp "$apk" /tmp/BudsSwitch-v0.2.7-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs /tmp/BudsSwitch-v0.2.7-debug.apk | tee /tmp/BudsSwitch-v0.2.7-debug.signing.txt
+          sha256sum "$apk" | tee /tmp/BudsSwitch-v0.2.8-debug.apk.sha256
+          cp "$apk" /tmp/BudsSwitch-v0.2.8-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs /tmp/BudsSwitch-v0.2.8-debug.apk | tee /tmp/BudsSwitch-v0.2.8-debug.signing.txt
 
       - name: Upload BudsSwitch APK
         uses: actions/upload-artifact@v7
         with:
-          name: BudsSwitch-v0.2.7-debug
+          name: BudsSwitch-v0.2.8-debug
           path: |
-            /tmp/BudsSwitch-v0.2.7-debug.apk
-            /tmp/BudsSwitch-v0.2.7-debug.apk.sha256
-            /tmp/BudsSwitch-v0.2.7-debug.signing.txt
+            /tmp/BudsSwitch-v0.2.8-debug.apk
+            /tmp/BudsSwitch-v0.2.8-debug.apk.sha256
+            /tmp/BudsSwitch-v0.2.8-debug.signing.txt
           if-no-files-found: error
           retention-days: 3
