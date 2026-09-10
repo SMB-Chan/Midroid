@@ -43,50 +43,101 @@ class SscWireCaptureService(private val context: Context) : ISscWireCaptureServi
         ctor.newInstance(bluetoothManager, context) as BluetoothAdapter
     }
 
+    private data class SnoopRuntimeState(
+        val activeMode: String?,
+        val defaultMode: String?,
+        val bluetoothOn: String,
+        val dumpAvailable: Boolean
+    )
+
     override fun ping(): String =
         "ok uid=${Process.myUid()} pid=${Process.myPid()} api=${android.os.Build.VERSION.SDK_INT}"
 
     override fun getSnoopStatus(): String = runCatching {
-        val rawMode = shell("getprop persist.bluetooth.btsnooplogmode").trim()
-        val mode = rawMode.ifBlank { "(empty/disabled-default)" }
-        val configuredPath = shell("getprop persist.bluetooth.btsnooppath").trim()
-        val path = configuredPath.ifBlank { "/data/misc/bluetooth/logs/btsnoop_hci.log" }
-        val filterA2dp = shell("getprop persist.bluetooth.snooplogfilter.profiles.a2dp.enabled").trim().ifBlank { "(unset)" }
+        val state = readActiveSnoopState()
+        val rawPersist = shell("getprop persist.bluetooth.btsnooplogmode").trim()
+        val rawPath = shell("getprop persist.bluetooth.btsnooppath").trim()
+        val path = rawPath.ifBlank { "/data/misc/bluetooth/logs/btsnoop_hci.log" }
+        val rawFilter = shell("getprop persist.bluetooth.snooplogfilter.profiles.a2dp.enabled").trim()
         val debuggable = shell("getprop ro.debuggable").trim().ifBlank { "?" }
         val stat = shell("ls -l '$path' '${path}.last' '${path}.filtered' '${path}.filtered.last' 2>&1")
-        val ready = rawMode.equals("full", ignoreCase = true)
+        val ready = state.activeMode.equals("FULL", ignoreCase = true)
+
         buildString {
-            appendLine("=== BLUETOOTH HCI SNOOP STATUS ===")
+            appendLine("=== BLUETOOTH HCI SNOOP STATUS v2 ===")
             appendLine("uid=${Process.myUid()} attribution=${attributionSource.packageName}")
-            appendLine("persist.bluetooth.btsnooplogmode=$mode")
+            appendLine("bluetooth_on=${state.bluetoothOn}")
+            appendLine("active.sSnoopLogSettingAtEnable=${state.activeMode ?: "(not found)"}")
+            appendLine("active.sDefaultSnoopLogSettingAtEnable=${state.defaultMode ?: "(not found)"}")
             appendLine("READY_FOR_CAPTURE=${if (ready) "YES" else "NO"}")
-            appendLine("persist.bluetooth.btsnooppath=${configuredPath.ifBlank { "(unset; AOSP default)" }}")
+            appendLine("persist.bluetooth.btsnooplogmode(shell)=${rawPersist.ifBlank { "(blank/protected from shell)" }}")
+            appendLine("persist.bluetooth.btsnooppath(shell)=${rawPath.ifBlank { "(blank/protected; using AOSP default)" }}")
             appendLine("effectivePath=$path")
-            appendLine("persist.bluetooth.snooplogfilter.profiles.a2dp.enabled=$filterA2dp")
+            appendLine("persist.bluetooth.snooplogfilter.profiles.a2dp.enabled(shell)=${rawFilter.ifBlank { "(blank/protected or unset)" }}")
             appendLine("ro.debuggable=$debuggable")
+            appendLine("dumpsysBluetoothManagerAvailable=${state.dumpAvailable}")
             appendLine("files:")
             appendLine(stat.trimEnd())
-            if (!ready) {
-                appendLine("ACTION REQUIRED: Developer options > Bluetooth HCI snoop log = Full")
-            } else {
-                appendLine("MODE=FULL detected. If you just changed this setting, toggle Bluetooth OFF/ON before capture so the logger restarts in Full mode.")
+            when {
+                ready -> appendLine("READY: Bluetooth stack was started with HCI snoop FULL.")
+                state.activeMode.equals("EMPTY", true) -> {
+                    appendLine("ACTION REQUIRED: persisted setting may already be Full, but the running Bluetooth stack started with EMPTY.")
+                    appendLine("Use 'Bluetooth再起動（Full設定を実効化）', reconnect Buds3 Pro, then check again.")
+                }
+                else -> {
+                    appendLine("ACTION REQUIRED: Developer options > Bluetooth HCI snoop log = Full, then restart Bluetooth.")
+                }
             }
-            appendLine("NOTE: shell may be denied direct access to /data/misc/bluetooth/logs even when snoop is active; bugreport export can still include the log.")
+            appendLine("NOTE: Samsung user builds can deny shell reads of persist.bluetooth.* properties; active dumpsys state is authoritative for capture readiness here.")
+            appendLine("NOTE: direct /data/misc/bluetooth/logs access can be denied even when Full is active; bugreport export can still carry btsnooz/HCI data.")
         }.trimEnd()
     }.getOrElse { t ->
         val root = rootThrowable(t)
         "SNOOP status failed: ${root.javaClass.simpleName}: ${root.message}"
     }
 
+    override fun restartBluetoothForSnoop(): String = runCatching {
+        val before = readActiveSnoopState()
+        val started = System.currentTimeMillis()
+        val disable = runCommand("/system/bin/svc", "bluetooth", "disable")
+        val offObserved = waitForBluetoothState(false, 12_000L)
+        Thread.sleep(700L)
+        val enable = runCommand("/system/bin/svc", "bluetooth", "enable")
+        val onObserved = waitForBluetoothState(true, 15_000L)
+        Thread.sleep(2_000L)
+        val after = readActiveSnoopState()
+        buildString {
+            appendLine("=== BLUETOOTH RESTART FOR HCI SNOOP ===")
+            appendLine("before.activeMode=${before.activeMode ?: "?"} bluetoothOn=${before.bluetoothOn}")
+            appendLine("disableExit=${disable.first} offObserved=$offObserved")
+            if (disable.second.isNotBlank()) appendLine("disableOutput=${disable.second.trim()}")
+            appendLine("enableExit=${enable.first} onObserved=$onObserved")
+            if (enable.second.isNotBlank()) appendLine("enableOutput=${enable.second.trim()}")
+            appendLine("after.activeMode=${after.activeMode ?: "?"} bluetoothOn=${after.bluetoothOn}")
+            appendLine("elapsedMs=${System.currentTimeMillis() - started}")
+            if (after.activeMode.equals("FULL", true)) {
+                appendLine("RESTART_OK_ACTIVE_SNOOP_FULL")
+                appendLine("Reconnect Galaxy Buds3 Pro and confirm SSC 96kHz before capture.")
+            } else {
+                appendLine("RESTART_DONE_BUT_ACTIVE_SNOOP_NOT_FULL")
+                appendLine("Set Developer options > Bluetooth HCI snoop log = Full, then restart Bluetooth again.")
+            }
+        }.trimEnd()
+    }.getOrElse { t ->
+        val root = rootThrowable(t)
+        "Bluetooth restart failed: ${root.javaClass.simpleName}: ${root.message}"
+    }
+
     override fun runMarkedToggleExperiment(address: String): String = runCatching {
         require(BluetoothAdapter.checkBluetoothAddress(address)) { "invalid Bluetooth address" }
-        val snoopMode = shell("getprop persist.bluetooth.btsnooplogmode").trim()
-        if (!snoopMode.equals("full", ignoreCase = true)) {
+        val snoopState = readActiveSnoopState()
+        if (!snoopState.activeMode.equals("FULL", ignoreCase = true)) {
             return@runCatching buildString {
                 appendLine("=== SSC-UHQ WIRE CAPTURE EXPERIMENT ===")
-                appendLine("CAPTURE_ABORTED_SNOOP_NOT_FULL")
-                appendLine("persist.bluetooth.btsnooplogmode=${snoopMode.ifBlank { "(empty/disabled-default)" }}")
-                appendLine("Set Developer options > Bluetooth HCI snoop log = Full, toggle Bluetooth OFF/ON, reconnect Buds3 Pro, then retry.")
+                appendLine("CAPTURE_ABORTED_ACTIVE_SNOOP_NOT_FULL")
+                appendLine("active.sSnoopLogSettingAtEnable=${snoopState.activeMode ?: "(not found)"}")
+                appendLine("bluetooth_on=${snoopState.bluetoothOn}")
+                appendLine("Set Developer options > Bluetooth HCI snoop log = Full, restart Bluetooth, reconnect Buds3 Pro, then retry.")
                 appendLine("No codec state change was attempted.")
             }.trimEnd()
         }
@@ -98,12 +149,13 @@ class SscWireCaptureService(private val context: Context) : ISscWireCaptureServi
         val supported = invokeCodecTypeQuery(a2dp, "semIsCodecSupported", device, 8)
         val enabled = invokeCodecTypeQuery(a2dp, "semIsCodecEnabled", device, 8)
         val before = codecSnapshot(a2dp, device)
-        if (supported != true || enabled != true) {
+        if (supported != true || enabled != true || !before.contains("codec=SSC") || !before.contains("rate=0x8")) {
             return@runCatching buildString {
                 appendLine("=== SSC-UHQ WIRE CAPTURE EXPERIMENT ===")
                 appendLine("PRECONDITION FAILED")
                 appendLine("device=$address supported=$supported enabled=$enabled")
                 appendLine("before=$before")
+                appendLine("Expected active SSC-UHQ (SSC / rate=0x8) before changing state.")
                 appendLine("No state change attempted.")
             }.trimEnd()
         }
@@ -111,7 +163,7 @@ class SscWireCaptureService(private val context: Context) : ISscWireCaptureServi
         val report = StringBuilder()
         report.appendLine("=== SSC-UHQ WIRE CAPTURE EXPERIMENT ===")
         report.appendLine("device=$address uid=${Process.myUid()} attribution=${attributionSource.packageName}")
-        report.appendLine("snoopMode=$snoopMode")
+        report.appendLine("activeSnoopMode=${snoopState.activeMode}")
         report.appendLine("before=$before")
         report.appendLine(marker("CAPTURE_BEGIN", address))
 
@@ -180,6 +232,7 @@ class SscWireCaptureService(private val context: Context) : ISscWireCaptureServi
 
         buildString {
             appendLine("=== BUGREPORT EXPORT ===")
+            appendLine("activeSnoopMode=${readActiveSnoopState().activeMode ?: "?"}")
             appendLine("bugreportzExit=${result.first}")
             appendLine("source=$source")
             appendLine("saved=$dest")
@@ -191,6 +244,27 @@ class SscWireCaptureService(private val context: Context) : ISscWireCaptureServi
     }.getOrElse { t ->
         val root = rootThrowable(t)
         "BUGREPORT export failed: ${root.javaClass.simpleName}: ${root.message}"
+    }
+
+    private fun readActiveSnoopState(): SnoopRuntimeState {
+        val dump = shell("dumpsys bluetooth_manager 2>&1")
+        val active = Regex("(?m)^\\s*sSnoopLogSettingAtEnable\\s*=\\s*([A-Za-z0-9_-]+)")
+            .find(dump)?.groupValues?.getOrNull(1)
+        val default = Regex("(?m)^\\s*sDefaultSnoopLogSettingAtEnable\\s*=\\s*([A-Za-z0-9_-]+)")
+            .find(dump)?.groupValues?.getOrNull(1)
+        val bluetoothOn = shell("settings get global bluetooth_on 2>/dev/null").trim().ifBlank { "?" }
+        return SnoopRuntimeState(active, default, bluetoothOn, dump.isNotBlank() && !dump.contains("Permission Denial", true))
+    }
+
+    private fun waitForBluetoothState(enabled: Boolean, timeoutMs: Long): Boolean {
+        val expected = if (enabled) "1" else "0"
+        val deadline = SystemClock.elapsedRealtime() + timeoutMs
+        while (SystemClock.elapsedRealtime() < deadline) {
+            val state = shell("settings get global bluetooth_on 2>/dev/null").trim()
+            if (state == expected) return true
+            Thread.sleep(250L)
+        }
+        return false
     }
 
     private fun marker(label: String, address: String): String {
