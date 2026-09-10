@@ -1,6 +1,7 @@
 package jp.example.budsswitch
 
 import android.Manifest
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.ComponentName
 import android.content.ServiceConnection
@@ -16,6 +17,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import jp.example.budsswitch.prefs.AppPrefs
 import jp.example.budsswitch.privileged.ISscPrivilegedProbeService
 import jp.example.budsswitch.privileged.SscPrivilegedProbeService
 import rikka.shizuku.Shizuku
@@ -66,11 +68,11 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
         }
 
         root.addView(TextView(this).apply {
-            text = "SSC Privileged Probe v0.3.1"
+            text = "SSC Privileged Probe v0.3.2"
             textSize = 25f
         })
         root.addView(TextView(this).apply {
-            text = "通常アプリで発生したCDM association制限を避け、Shizuku UserService (shell UID) からSamsung A2DP Binderへ type=8 を読み取り照会します。状態変更は行いません。"
+            text = "複数のGalaxy Buds bond entryを誤選択しないよう、BudsSwitch本体で選択済みのBluetoothアドレスだけをShizuku UserService (shell UID) から照会します。状態変更は行いません。"
             textSize = 14f
             setPadding(0, dp(8), 0, dp(12))
         })
@@ -82,7 +84,7 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
         root.addView(status)
 
         val bindButton = Button(this).apply { text = "Shizuku権限 / Probe Service接続" }
-        val probeButton = Button(this).apply { text = "Buds3 ProのSSC-UHQ(type=8)を特権照会" }
+        val probeButton = Button(this).apply { text = "BudsSwitchで選択中のBudsをSSC-UHQ(type=8)照会" }
         root.addView(bindButton)
         root.addView(probeButton)
 
@@ -137,7 +139,7 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
             ComponentName(packageName, SscPrivilegedProbeService::class.java.name)
         )
             .tag("ssc_privileged_probe")
-            .version(1)
+            .version(2)
             .daemon(false)
             .debuggable(true)
             .processNameSuffix("sscprobe")
@@ -151,22 +153,67 @@ class SscPrivilegedProbeActivity : AppCompatActivity() {
             output.text = "BLUETOOTH_CONNECT permissionがありません。BudsSwitch本体でAndroid権限を許可してください。"
             return
         }
+
         val adapter = getSystemService(BluetoothManager::class.java).adapter
-        val device = runCatching {
-            adapter?.bondedDevices?.firstOrNull { it.name.orEmpty().contains("Buds", ignoreCase = true) }
-        }.getOrNull()
-        if (device == null) {
+        if (adapter == null) {
+            output.text = "BluetoothAdapter unavailable"
+            return
+        }
+
+        val buds = runCatching {
+            adapter.bondedDevices
+                .filter { it.name.orEmpty().contains("Buds", ignoreCase = true) }
+                .sortedBy { it.address }
+        }.getOrElse {
+            output.text = "bondedDevices取得失敗: ${it.javaClass.simpleName}: ${it.message}"
+            return
+        }
+
+        if (buds.isEmpty()) {
             output.text = "ペアリング済みGalaxy Budsが見つかりません"
             return
         }
-        output.text = "${device.name} [${device.address}] をshell UIDから照会中…"
+
+        val selectedAddress = AppPrefs.selectedDevice(this)
+        val device = selectedAddress?.let { saved ->
+            buds.firstOrNull { it.address.equals(saved, ignoreCase = true) }
+        } ?: if (buds.size == 1) buds.single() else null
+
+        if (device == null) {
+            output.text = buildString {
+                appendLine("Probeを中止しました: Galaxy Budsのbond entryが複数あります。")
+                appendLine("BudsSwitch本体でSSCが96kHzになっているBudsを選び、SSC / UHQ Vendor ID分析を1回実行してから戻ってください。")
+                appendLine("savedSelected=${selectedAddress ?: "none"}")
+                appendLine("Buds candidates:")
+                buds.forEach { appendLine("  ${safeName(it)} [${it.address}]") }
+                appendLine("NOTE: v0.3.1はここで先頭entryを選んでいたため誤照会が発生しました。")
+            }.trimEnd()
+            return
+        }
+
+        output.text = buildString {
+            appendLine("Probe target locked to BudsSwitch selection:")
+            appendLine("${safeName(device)} [${device.address}]")
+            appendLine("savedSelected=${selectedAddress ?: "single-buds-fallback"}")
+            appendLine("shell UIDから照会中…")
+        }.trimEnd()
+
         Thread {
             val result = remote?.runCatching { probe(device.address) }
                 ?.getOrElse { "remote probe error: ${it.javaClass.simpleName}: ${it.message}" }
                 ?: "Probe Service not connected"
-            runOnUiThread { output.text = result }
+            runOnUiThread {
+                output.text = buildString {
+                    appendLine("target=${safeName(device)} [${device.address}]")
+                    appendLine("savedSelected=${selectedAddress ?: "single-buds-fallback"}")
+                    appendLine(result)
+                }.trimEnd()
+            }
         }.start()
     }
+
+    private fun safeName(device: BluetoothDevice): String =
+        runCatching { device.name }.getOrNull().orEmpty().ifBlank { "Galaxy Buds" }
 
     override fun onDestroy() {
         Shizuku.removeRequestPermissionResultListener(permissionListener)
