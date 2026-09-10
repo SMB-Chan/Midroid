@@ -12,7 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 object ShizukuBridge {
     const val REQUEST_CODE = 42001
-    private const val SERVICE_VERSION = 5
+    private const val SERVICE_VERSION = 6
     private const val SERVICE_TAG = "buds_switch_bluetooth"
 
     private var remote: IBluetoothPrivilegedService? = null
