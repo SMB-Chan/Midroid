@@ -12,7 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 object ShizukuBridge {
     const val REQUEST_CODE = 42001
-    private const val SERVICE_VERSION = 4
+    private const val SERVICE_VERSION = 5
     private const val SERVICE_TAG = "buds_switch_bluetooth"
 
     private var remote: IBluetoothPrivilegedService? = null
@@ -25,7 +25,6 @@ object ShizukuBridge {
             binding = false
             notifyState("Shizuku UserService connected: ${safePing()}")
         }
-
         override fun onServiceDisconnected(name: ComponentName?) {
             remote = null
             binding = false
@@ -35,14 +34,10 @@ object ShizukuBridge {
 
     fun addListener(listener: (String) -> Unit) { listeners += listener }
     fun removeListener(listener: (String) -> Unit) { listeners -= listener }
-
     fun binderAlive(): Boolean = runCatching { Shizuku.pingBinder() }.getOrDefault(false)
-
-    fun permissionGranted(): Boolean =
-        binderAlive() && runCatching {
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        }.getOrDefault(false)
-
+    fun permissionGranted(): Boolean = binderAlive() && runCatching {
+        Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+    }.getOrDefault(false)
     fun serverUid(): Int = runCatching { Shizuku.getUid() }.getOrDefault(-1)
 
     fun remotePermissionSummary(): String {
@@ -50,7 +45,6 @@ object ShizukuBridge {
         fun check(name: String): String = runCatching {
             if (Shizuku.checkRemotePermission(name) == PackageManager.PERMISSION_GRANTED) "yes" else "no"
         }.getOrDefault("error")
-
         return "CONNECT=${check(Manifest.permission.BLUETOOTH_CONNECT)} " +
             "PRIVILEGED=${check("android.permission.BLUETOOTH_PRIVILEGED")} " +
             "PHONE=${check("android.permission.MODIFY_PHONE_STATE")}"
@@ -76,19 +70,14 @@ object ShizukuBridge {
         }
         if (remote != null || binding) return
         binding = true
-
         val args = Shizuku.UserServiceArgs(
-            ComponentName(
-                "jp.example.budsswitch",
-                PrivilegedBluetoothService::class.java.name
-            )
+            ComponentName("jp.example.budsswitch", PrivilegedBluetoothService::class.java.name)
         )
             .tag(SERVICE_TAG)
             .version(SERVICE_VERSION)
             .daemon(false)
             .debuggable(true)
             .processNameSuffix("bluetooth")
-
         runCatching { Shizuku.bindUserService(args, connection) }
             .onFailure {
                 binding = false
@@ -99,19 +88,17 @@ object ShizukuBridge {
     fun connect(address: String): String =
         remote?.runCatching { connectDevice(address) }?.getOrElse { "remote error: ${it.message}" }
             ?: "UserService not connected"
-
     fun disconnect(address: String): String =
         remote?.runCatching { disconnectDevice(address) }?.getOrElse { "remote error: ${it.message}" }
             ?: "UserService not connected"
-
     fun summary(address: String): String =
         remote?.runCatching { connectionSummary(address) }?.getOrElse { "remote error: ${it.message}" }
             ?: "UserService not connected"
+    fun codecDiagnostics(address: String): String =
+        remote?.runCatching { codecDiagnostics(address) }?.getOrElse { "remote error: ${it.message}" }
+            ?: "UserService not connected"
 
     fun ready(): Boolean = remote != null
-
-    private fun safePing(): String =
-        remote?.runCatching { ping() }?.getOrDefault("ping failed") ?: "not connected"
-
+    private fun safePing(): String = remote?.runCatching { ping() }?.getOrDefault("ping failed") ?: "not connected"
     private fun notifyState(message: String) { listeners.forEach { it(message) } }
 }
