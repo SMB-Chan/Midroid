@@ -13,18 +13,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import rikka.shizuku.SystemServiceHelper
 
-/**
- * Runs as a Shizuku UserService (normally shell uid=2000).
- *
- * Android 15's BluetoothAdapter.createAdapter() goes through
- * BluetoothFrameworkInitializer. That initializer is not guaranteed to be populated in a
- * Shizuku app_process/UserService, so on real devices createAdapter() can return null even while
- * bluetooth_manager is available from ServiceManager.
- *
- * Therefore this service obtains the bluetooth_manager Binder directly and constructs the hidden
- * BluetoothAdapter(IBluetoothManager, AttributionSource) instance by reflection. This keeps the
- * Binder caller and attribution on the shell/root identity used by Shizuku.
- */
 @Keep
 class PrivilegedBluetoothService(private val context: Context) :
     IBluetoothPrivilegedService.Stub() {
@@ -42,12 +30,17 @@ class PrivilegedBluetoothService(private val context: Context) :
 
         val allProfiles = invokeDeviceInt(device, "connect")
         if (allProfiles == 0) {
-            return@runCatching "connectAllEnabledProfiles=SUCCESS(0)"
+            return@runCatching "all-profiles=success"
         }
 
         val a2dp = invokeProfile(BluetoothProfile.A2DP, device, "connect")
         val headset = invokeProfile(BluetoothProfile.HEADSET, device, "connect")
-        "connectAllEnabledProfiles=$allProfiles; fallback A2DP=$a2dp HFP=$headset"
+        val primary = if (allProfiles == Int.MIN_VALUE) {
+            "all-profiles API unavailable"
+        } else {
+            "all-profiles result=$allProfiles"
+        }
+        "$primary; fallback A2DP=$a2dp HFP=$headset"
     }.getOrElse { rootMessage("connect failed", it) }
 
     override fun disconnectDevice(address: String): String = runCatching {
@@ -56,21 +49,25 @@ class PrivilegedBluetoothService(private val context: Context) :
 
         val allProfiles = invokeDeviceInt(device, "disconnect")
         if (allProfiles == 0) {
-            return@runCatching "disconnectAllEnabledProfiles=SUCCESS(0)"
+            return@runCatching "all-profiles=success"
         }
 
         val headset = invokeProfile(BluetoothProfile.HEADSET, device, "disconnect")
         val a2dp = invokeProfile(BluetoothProfile.A2DP, device, "disconnect")
-        "disconnectAllEnabledProfiles=$allProfiles; fallback HFP=$headset A2DP=$a2dp"
+        val primary = if (allProfiles == Int.MIN_VALUE) {
+            "all-profiles API unavailable"
+        } else {
+            "all-profiles result=$allProfiles"
+        }
+        "$primary; fallback HFP=$headset A2DP=$a2dp"
     }.getOrElse { rootMessage("disconnect failed", it) }
 
     override fun connectionSummary(address: String): String = runCatching {
         validate(address)
         val device = adapter.getRemoteDevice(address)
-        val acl = invokeDeviceBoolean(device, "isConnected")
         val a2dp = queryConnectionState(BluetoothProfile.A2DP, device)
         val headset = queryConnectionState(BluetoothProfile.HEADSET, device)
-        "ACL=$acl A2DP=${stateName(a2dp)} HFP=${stateName(headset)}"
+        "A2DP=${stateName(a2dp)} HFP=${stateName(headset)}"
     }.getOrElse { rootMessage("status failed", it) }
 
     private fun createPrivilegedAdapter(): BluetoothAdapter {
@@ -110,16 +107,9 @@ class PrivilegedBluetoothService(private val context: Context) :
             val method = BluetoothDevice::class.java.getDeclaredMethod(methodName)
             method.isAccessible = true
             (method.invoke(device) as? Int) ?: Int.MIN_VALUE
-        } catch (t: Throwable) {
+        } catch (_: Throwable) {
             Int.MIN_VALUE
         }
-
-    private fun invokeDeviceBoolean(device: BluetoothDevice, methodName: String): Boolean =
-        runCatching {
-            val method = BluetoothDevice::class.java.getDeclaredMethod(methodName)
-            method.isAccessible = true
-            (method.invoke(device) as? Boolean) ?: false
-        }.getOrDefault(false)
 
     private fun invokeProfile(profile: Int, device: BluetoothDevice, methodName: String): String {
         val proxy = acquireProfile(profile) ?: return "proxy-unavailable"
@@ -154,6 +144,7 @@ class PrivilegedBluetoothService(private val context: Context) :
                     latch.countDown()
                 }
             }
+
             override fun onServiceDisconnected(profileId: Int) = Unit
         }
 
