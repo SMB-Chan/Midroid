@@ -5,12 +5,15 @@ import android.bluetooth.BluetoothManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.SystemClock
 import android.provider.Settings
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import jp.example.budsswitch.autoswitch.AutoSwitchService
 import jp.example.budsswitch.databinding.ActivityMainBinding
 import jp.example.budsswitch.model.BondedDevice
@@ -22,6 +25,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var devices: List<BondedDevice> = emptyList()
+    private var connectionAttempt = 0
+    private var successLoggedAttempt = -1
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -52,6 +57,12 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
+
         Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
         ShizukuBridge.addListener(bridgeListener)
 
@@ -66,11 +77,15 @@ class MainActivity : AppCompatActivity() {
         binding.refreshButton.setOnClickListener { refreshDevices() }
         binding.connectButton.setOnClickListener { selectedDevice()?.let(::connect) }
         binding.disconnectButton.setOnClickListener { selectedDevice()?.let(::disconnect) }
+        binding.savePeerCodeButton.setOnClickListener { savePeerCode() }
         binding.startAutoButton.setOnClickListener { startAutoSwitch() }
         binding.stopAutoButton.setOnClickListener {
             stopService(Intent(this, AutoSwitchService::class.java))
             appendLog("Auto Switch stopped")
         }
+
+        binding.peerCodeEdit.setText(AppPrefs.peerCode(this))
+        updatePeerStatus()
 
         if (ShizukuBridge.permissionGranted()) ShizukuBridge.bindUserService()
         requestAndroidPermissions()
@@ -103,12 +118,7 @@ class MainActivity : AppCompatActivity() {
 
         val adapter = getSystemService(BluetoothManager::class.java).adapter
         devices = adapter.bondedDevices
-            .map {
-                BondedDevice(
-                    it.name ?: "Unknown",
-                    it.address
-                )
-            }
+            .map { BondedDevice(it.name ?: "Unknown", it.address) }
             .sortedWith(
                 compareByDescending<BondedDevice> {
                     it.name.contains("Buds", ignoreCase = true) ||
@@ -116,12 +126,11 @@ class MainActivity : AppCompatActivity() {
                 }.thenBy { it.name.lowercase() }
             )
 
-        val spinnerAdapter = ArrayAdapter(
+        binding.deviceSpinner.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,
             devices
         )
-        binding.deviceSpinner.adapter = spinnerAdapter
 
         val saved = AppPrefs.selectedDevice(this)
         val index = devices.indexOfFirst { it.address == saved }
@@ -136,9 +145,9 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Bluetooth機器を選択してください", Toast.LENGTH_SHORT).show()
             return null
         }
-        val d = devices[position]
-        AppPrefs.setSelectedDevice(this, d.address)
-        return d
+        val device = devices[position]
+        AppPrefs.setSelectedDevice(this, device.address)
+        return device
     }
 
     private fun connect(device: BondedDevice) {
@@ -147,11 +156,36 @@ class MainActivity : AppCompatActivity() {
             ShizukuBridge.bindUserService()
             return
         }
+
         AppPrefs.setSelectedDevice(this, device.address)
-        appendLog("${device.name}: ${ShizukuBridge.connect(device.address)}")
-        binding.root.postDelayed({
-            appendLog("status: ${ShizukuBridge.summary(device.address)}")
-        }, 1800)
+        val attempt = ++connectionAttempt
+        successLoggedAttempt = -1
+        val started = SystemClock.elapsedRealtime()
+        val result = ShizukuBridge.connect(device.address)
+        appendLog("${device.name}: $result")
+
+        longArrayOf(1_000, 2_000, 3_000, 5_000, 8_000).forEach { delay ->
+            binding.root.postDelayed({
+                if (attempt != connectionAttempt) return@postDelayed
+                val summary = ShizukuBridge.summary(device.address)
+                val elapsed = SystemClock.elapsedRealtime() - started
+                val a2dpConnected = summary.contains("A2DP=connected")
+                val hfpConnected = summary.contains("HFP=connected")
+
+                if (a2dpConnected && successLoggedAttempt != attempt) {
+                    successLoggedAttempt = attempt
+                    appendLog(
+                        "✓ ${device.name} 接続成功 / A2DP=connected " +
+                            "HFP=${if (hfpConnected) "connected" else "pending"} / " +
+                            "${elapsed}ms"
+                    )
+                } else if (delay == 8_000L && !a2dpConnected) {
+                    appendLog("接続未完了(8s): $summary")
+                } else if (successLoggedAttempt != attempt) {
+                    appendLog("status ${elapsed}ms: $summary")
+                }
+            }, delay)
+        }
     }
 
     private fun disconnect(device: BondedDevice) {
@@ -159,10 +193,33 @@ class MainActivity : AppCompatActivity() {
             appendLog("Shizuku UserService not ready")
             return
         }
+        ++connectionAttempt
         appendLog("${device.name}: ${ShizukuBridge.disconnect(device.address)}")
-        binding.root.postDelayed({
-            appendLog("status: ${ShizukuBridge.summary(device.address)}")
-        }, 1800)
+        longArrayOf(1_000, 3_000).forEach { delay ->
+            binding.root.postDelayed({
+                appendLog("status: ${ShizukuBridge.summary(device.address)}")
+            }, delay)
+        }
+    }
+
+    private fun savePeerCode() {
+        val code = binding.peerCodeEdit.text?.toString()?.trim().orEmpty()
+        if (code.isNotEmpty() && code.length < 6) {
+            Toast.makeText(this, "共有コードは6文字以上にしてください", Toast.LENGTH_SHORT).show()
+            return
+        }
+        AppPrefs.setPeerCode(this, code)
+        appendLog(if (code.isEmpty()) "Peer Link disabled" else "Peer Link code saved")
+        updatePeerStatus()
+        updateStatus()
+    }
+
+    private fun updatePeerStatus() {
+        binding.peerStatusText.text = if (AppPrefs.peerLinkEnabled(this)) {
+            "設定済み：同じコードをもう1台のBudsSwitchにも設定してください"
+        } else {
+            "未設定：Peer Linkは無効です"
+        }
     }
 
     private fun startAutoSwitch() {
@@ -179,7 +236,10 @@ class MainActivity : AppCompatActivity() {
             this,
             Intent(this, AutoSwitchService::class.java)
         )
-        appendLog("Auto Switch started for ${device.name}")
+        appendLog(
+            "Auto Switch started for ${device.name} / Peer Link=" +
+                if (AppPrefs.peerLinkEnabled(this)) "ON" else "OFF"
+        )
     }
 
     private fun updateStatus() {
@@ -194,15 +254,18 @@ class MainActivity : AppCompatActivity() {
             append(ShizukuBridge.remotePermissionSummary())
             append("\nUserService: ")
             append(if (ShizukuBridge.ready()) "OK" else "NG")
+            append("\nPeer Link: ")
+            append(if (AppPrefs.peerLinkEnabled(this@MainActivity)) "configured" else "off")
         }
     }
 
     private fun appendLog(message: String) {
         val old = binding.logText.text?.toString().orEmpty()
-        binding.logText.text = (message + "\n" + old).take(12000)
+        binding.logText.text = (message + "\n" + old).take(16_000)
     }
 
     override fun onDestroy() {
+        ++connectionAttempt
         Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener)
         ShizukuBridge.removeListener(bridgeListener)
         super.onDestroy()
