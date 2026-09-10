@@ -4,5 +4,6 @@ interface ISscWireCaptureService {
     String ping();
     String getSnoopStatus();
     String runMarkedToggleExperiment(String address);
+    String generateBugreport(String prefix);
     void destroy();
 }
