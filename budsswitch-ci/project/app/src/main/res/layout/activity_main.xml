@@ -13,7 +13,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="BudsSwitch MVP"
+            android:text="BudsSwitch v0.2.4"
             android:textAppearance="?attr/textAppearanceHeadlineMedium" />
 
         <TextView
@@ -70,6 +70,22 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="切断" />
+
+        <Button
+            android:id="@+id/codecDiagnosticsButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="SSC / A2DP Codecを分析" />
+
+        <TextView
+            android:id="@+id/codecDiagnosticsText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="monospace"
+            android:text="Codec分析はBuds接続後に実行してください"
+            android:textIsSelectable="true"
+            android:textSize="12sp" />
 
         <TextView
             android:layout_width="wrap_content"
