@@ -1,0 +1,68 @@
+name: BudsSwitch CI
+
+on:
+  push:
+    branches: [budsswitch-ci-20260910]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+          log-accepted-android-sdk-licenses: false
+
+      - name: Install Android SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
+
+      - name: Restore BudsSwitch source
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d budsswitch-ci/source.zip.b64 > /tmp/BudsSwitch.zip
+          echo "202b845ec9ffd27ad7c508dc5cbbc95968f57696db40e67ebe89d86dd13dd2ae  /tmp/BudsSwitch.zip" | sha256sum -c -
+          unzip -t /tmp/BudsSwitch.zip
+          rm -rf /tmp/budsswitch-src
+          mkdir -p /tmp/budsswitch-src
+          unzip -q /tmp/BudsSwitch.zip -d /tmp/budsswitch-src
+
+      - name: Build and test BudsSwitch
+        working-directory: /tmp/budsswitch-src/BudsSwitch
+        run: gradle --stacktrace testDebugUnitTest assembleDebug
+
+      - name: Record APK metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=/tmp/budsswitch-src/BudsSwitch/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$apk"
+          sha256sum "$apk" | tee /tmp/BudsSwitch-v0.2.0-debug.apk.sha256
+          cp "$apk" /tmp/BudsSwitch-v0.2.0-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs /tmp/BudsSwitch-v0.2.0-debug.apk | tee /tmp/BudsSwitch-v0.2.0-debug.signing.txt
+
+      - name: Upload BudsSwitch APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: BudsSwitch-v0.2.0-debug
+          path: |
+            /tmp/BudsSwitch-v0.2.0-debug.apk
+            /tmp/BudsSwitch-v0.2.0-debug.apk.sha256
+            /tmp/BudsSwitch-v0.2.0-debug.signing.txt
+          if-no-files-found: error
+          retention-days: 3
