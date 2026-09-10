@@ -47,24 +47,31 @@ class SscWireCaptureService(private val context: Context) : ISscWireCaptureServi
         "ok uid=${Process.myUid()} pid=${Process.myPid()} api=${android.os.Build.VERSION.SDK_INT}"
 
     override fun getSnoopStatus(): String = runCatching {
-        val mode = shell("getprop persist.bluetooth.btsnooplogmode").trim().ifBlank { "(empty/disabled-default)" }
+        val rawMode = shell("getprop persist.bluetooth.btsnooplogmode").trim()
+        val mode = rawMode.ifBlank { "(empty/disabled-default)" }
         val configuredPath = shell("getprop persist.bluetooth.btsnooppath").trim()
         val path = configuredPath.ifBlank { "/data/misc/bluetooth/logs/btsnoop_hci.log" }
         val filterA2dp = shell("getprop persist.bluetooth.snooplogfilter.profiles.a2dp.enabled").trim().ifBlank { "(unset)" }
         val debuggable = shell("getprop ro.debuggable").trim().ifBlank { "?" }
         val stat = shell("ls -l '$path' '${path}.last' '${path}.filtered' '${path}.filtered.last' 2>&1")
+        val ready = rawMode.equals("full", ignoreCase = true)
         buildString {
             appendLine("=== BLUETOOTH HCI SNOOP STATUS ===")
             appendLine("uid=${Process.myUid()} attribution=${attributionSource.packageName}")
             appendLine("persist.bluetooth.btsnooplogmode=$mode")
+            appendLine("READY_FOR_CAPTURE=${if (ready) "YES" else "NO"}")
             appendLine("persist.bluetooth.btsnooppath=${configuredPath.ifBlank { "(unset; AOSP default)" }}")
             appendLine("effectivePath=$path")
             appendLine("persist.bluetooth.snooplogfilter.profiles.a2dp.enabled=$filterA2dp")
             appendLine("ro.debuggable=$debuggable")
             appendLine("files:")
             appendLine(stat.trimEnd())
-            appendLine("RECOMMENDATION: set Developer options > Bluetooth HCI snoop log = Full before wire capture.")
-            appendLine("Filtered mode may omit A2DP media payloads; Full is preferred for codec-byte analysis.")
+            if (!ready) {
+                appendLine("ACTION REQUIRED: Developer options > Bluetooth HCI snoop log = Full")
+            } else {
+                appendLine("MODE=FULL detected. If you just changed this setting, toggle Bluetooth OFF/ON before capture so the logger restarts in Full mode.")
+            }
+            appendLine("NOTE: shell may be denied direct access to /data/misc/bluetooth/logs even when snoop is active; bugreport export can still include the log.")
         }.trimEnd()
     }.getOrElse { t ->
         val root = rootThrowable(t)
@@ -73,6 +80,17 @@ class SscWireCaptureService(private val context: Context) : ISscWireCaptureServi
 
     override fun runMarkedToggleExperiment(address: String): String = runCatching {
         require(BluetoothAdapter.checkBluetoothAddress(address)) { "invalid Bluetooth address" }
+        val snoopMode = shell("getprop persist.bluetooth.btsnooplogmode").trim()
+        if (!snoopMode.equals("full", ignoreCase = true)) {
+            return@runCatching buildString {
+                appendLine("=== SSC-UHQ WIRE CAPTURE EXPERIMENT ===")
+                appendLine("CAPTURE_ABORTED_SNOOP_NOT_FULL")
+                appendLine("persist.bluetooth.btsnooplogmode=${snoopMode.ifBlank { "(empty/disabled-default)" }}")
+                appendLine("Set Developer options > Bluetooth HCI snoop log = Full, toggle Bluetooth OFF/ON, reconnect Buds3 Pro, then retry.")
+                appendLine("No codec state change was attempted.")
+            }.trimEnd()
+        }
+
         val device = remoteDevice(address)
         val a2dp = directProfileService(BluetoothProfile.A2DP)
             ?: error("direct A2DP binder unavailable")
@@ -93,6 +111,7 @@ class SscWireCaptureService(private val context: Context) : ISscWireCaptureServi
         val report = StringBuilder()
         report.appendLine("=== SSC-UHQ WIRE CAPTURE EXPERIMENT ===")
         report.appendLine("device=$address uid=${Process.myUid()} attribution=${attributionSource.packageName}")
+        report.appendLine("snoopMode=$snoopMode")
         report.appendLine("before=$before")
         report.appendLine(marker("CAPTURE_BEGIN", address))
 
@@ -133,6 +152,47 @@ class SscWireCaptureService(private val context: Context) : ISscWireCaptureServi
         "WIRE experiment failed: ${root.javaClass.simpleName}: ${root.message}"
     }
 
+    override fun generateBugreport(prefix: String): String = runCatching {
+        val safePrefix = prefix.replace(Regex("[^A-Za-z0-9._-]"), "_").trim('_').ifBlank { "BudsSwitch-SSC-Wire" }
+        val started = System.currentTimeMillis()
+        val result = runCommand("/system/bin/bugreportz", "-p")
+        val source = result.second.lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.startsWith("OK:") }
+            ?.removePrefix("OK:")
+            ?.trim()
+
+        if (result.first != 0 || source.isNullOrBlank()) {
+            return@runCatching buildString {
+                appendLine("=== BUGREPORT EXPORT ===")
+                appendLine("bugreportzExit=${result.first}")
+                appendLine("BUGREPORT_FAILED")
+                appendLine(result.second.trim())
+            }.trimEnd()
+        }
+
+        runCommand("/system/bin/mkdir", "-p", "/sdcard/Download")
+        val dest = "/sdcard/Download/${safePrefix}-${System.currentTimeMillis()}.zip"
+        val copy = runCommand("/system/bin/cp", source, dest)
+        if (copy.first != 0) error("copy failed exit=${copy.first}: ${copy.second.trim()}")
+        runCommand("/system/bin/chmod", "0644", dest)
+        val stat = runCommand("/system/bin/ls", "-l", dest).second.trim()
+
+        buildString {
+            appendLine("=== BUGREPORT EXPORT ===")
+            appendLine("bugreportzExit=${result.first}")
+            appendLine("source=$source")
+            appendLine("saved=$dest")
+            appendLine("elapsedMs=${System.currentTimeMillis() - started}")
+            appendLine("stat=$stat")
+            appendLine("BUGREPORT_READY")
+            appendLine("PRIVACY: Android bugreports can contain device, app, network and account-related diagnostics. Share only with a party you trust.")
+        }.trimEnd()
+    }.getOrElse { t ->
+        val root = rootThrowable(t)
+        "BUGREPORT export failed: ${root.javaClass.simpleName}: ${root.message}"
+    }
+
     private fun marker(label: String, address: String): String {
         val wall = System.currentTimeMillis()
         val elapsed = SystemClock.elapsedRealtimeNanos()
@@ -146,6 +206,13 @@ class SscWireCaptureService(private val context: Context) : ISscWireCaptureServi
         val text = p.inputStream.bufferedReader().use { it.readText() }
         p.waitFor()
         return text
+    }
+
+    private fun runCommand(vararg args: String): Pair<Int, String> {
+        val p = ProcessBuilder(*args).redirectErrorStream(true).start()
+        val text = p.inputStream.bufferedReader().use { it.readText() }
+        val code = p.waitFor()
+        return code to text
     }
 
     private fun directProfileService(profile: Int): Any? {
