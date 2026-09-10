@@ -11,8 +11,8 @@ android {
         applicationId = "jp.example.budsswitch"
         minSdk = 31
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.2.3-mvp"
+        versionCode = 6
+        versionName = "0.2.4-mvp"
     }
 
     buildTypes {
@@ -30,9 +30,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    kotlinOptions { jvmTarget = "17" }
 
     buildFeatures {
         aidl = true
