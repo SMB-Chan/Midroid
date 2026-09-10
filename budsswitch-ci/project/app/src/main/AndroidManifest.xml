@@ -20,6 +20,16 @@
         android:theme="@style/Theme.BudsSwitch">
 
         <activity
+            android:name=".MotorolaSscInjectorActivity"
+            android:exported="true"
+            android:label="Motorola SSC-UHQ Injector">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".SscWireCaptureActivity"
             android:exported="true"
             android:label="SSC Wire Capture">
