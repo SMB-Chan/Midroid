@@ -61,9 +61,9 @@ class SscWireCaptureActivity : AppCompatActivity() {
             insets
         }
 
-        root.addView(TextView(this).apply { text = "SSC Wire Capture v0.3.4"; textSize = 25f })
+        root.addView(TextView(this).apply { text = "SSC Wire Capture v0.3.5"; textSize = 25f })
         root.addView(TextView(this).apply {
-            text = "HCI snoopとSSC-UHQ OFF→ON因果実験を時刻マーカーで同期します。まず開発者向けオプションでBluetooth HCI snoop logをFullにしてください。実験はtype=8を一時OFFにし、finallyで必ずONへ戻します。"
+            text = "SSC-UHQ OFF→ONをHCI snoopと同期します。HCI snoopは必ずFullにし、設定変更後はBluetoothをOFF→ONしてからBuds3 Proを再接続してください。Fullでなければ実験を自動中止します。実験後はShizukuからbugreport ZIPをDownloadへ保存できます。"
             textSize = 14f; setPadding(0, dp(8), 0, dp(12))
         })
         status = TextView(this).apply { text = "初期化中…"; setPadding(0, 0, 0, dp(10)) }
@@ -71,10 +71,11 @@ class SscWireCaptureActivity : AppCompatActivity() {
 
         val bind = Button(this).apply { text = "Shizuku / Wire Capture Service接続" }
         val dev = Button(this).apply { text = "開発者向けオプションを開く（HCI snoop=Full）" }
-        val snoop = Button(this).apply { text = "HCI snoop状態 / ログパス確認" }
+        val snoop = Button(this).apply { text = "HCI snoop準備状態を確認" }
         val capture = Button(this).apply { text = "時刻マーカー付き SSC-UHQ OFF → ON実験" }
+        val bugreport = Button(this).apply { text = "capture後のbugreport ZIPをDownloadへ保存" }
         val copy = Button(this).apply { text = "結果をクリップボードへコピー" }
-        listOf(bind, dev, snoop, capture, copy).forEach(root::addView)
+        listOf(bind, dev, snoop, capture, bugreport, copy).forEach(root::addView)
 
         output = TextView(this).apply {
             typeface = Typeface.MONOSPACE; textSize = 12.5f; text = "未実行"; setTextIsSelectable(true)
@@ -89,16 +90,25 @@ class SscWireCaptureActivity : AppCompatActivity() {
         snoop.setOnClickListener {
             ensureBound()
             Thread {
-                val result = remote?.runCatching { snoopStatus }?.getOrElse { "error: ${it.message}" } ?: "Service未接続。接続後もう一度押してください。"
+                val result = remote?.runCatching { snoopStatus }?.getOrElse { "error: ${it.message}" }
+                    ?: "Service未接続。接続後もう一度押してください。"
                 runOnUiThread { output.text = result }
             }.start()
         }
         capture.setOnClickListener {
             AlertDialog.Builder(this)
                 .setTitle("SSC-UHQ wire capture")
-                .setMessage("Buds3 Proの音が一時的に途切れます。HCI snoopがFullであることを確認しましたか？ type=8は実験後に自動復帰します。")
+                .setMessage("Buds3 Proの音が一時的に途切れます。HCI snoop=Fullに設定し、その後BluetoothをOFF→ONしましたか？ Fullでなければアプリ側で実験を中止します。type=8は実験後に自動復帰します。")
                 .setNegativeButton("キャンセル", null)
                 .setPositiveButton("実行") { _, _ -> runCapture() }
+                .show()
+        }
+        bugreport.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("bugreportを生成")
+                .setMessage("Android bugreportには端末・アプリ・ネットワーク・アカウント関連の診断情報が含まれる場合があります。capture直後の解析用ZIPを生成し、Downloadフォルダへコピーします。続行しますか？")
+                .setNegativeButton("キャンセル", null)
+                .setPositiveButton("生成") { _, _ -> runBugreport() }
                 .show()
         }
         copy.setOnClickListener {
@@ -122,7 +132,7 @@ class SscWireCaptureActivity : AppCompatActivity() {
     private fun bindService() {
         if (remote != null) return
         val args = Shizuku.UserServiceArgs(ComponentName(packageName, SscWireCaptureService::class.java.name))
-            .tag("ssc_wire_capture").version(1).daemon(false).debuggable(true).processNameSuffix("sscwire")
+            .tag("ssc_wire_capture").version(2).daemon(false).debuggable(true).processNameSuffix("sscwire")
         status.text = "Wire Capture Service接続中…"
         runCatching { Shizuku.bindUserService(args, connection) }
             .onFailure { status.text = "bind failed: ${it.javaClass.simpleName}: ${it.message}" }
@@ -144,6 +154,7 @@ class SscWireCaptureActivity : AppCompatActivity() {
             return
         }
         output.text = "target=${safeName(device)} [${device.address}]\nWire capture実験中…"
+        status.text = "capture実験中…"
         Thread {
             val snoopBefore = remote?.runCatching { snoopStatus }?.getOrNull().orEmpty()
             val result = remote?.runCatching { runMarkedToggleExperiment(device.address) }
@@ -155,8 +166,25 @@ class SscWireCaptureActivity : AppCompatActivity() {
                     appendLine("--- snoop before ---"); appendLine(snoopBefore)
                     appendLine("--- experiment ---"); appendLine(result)
                     appendLine("--- snoop after ---"); appendLine(snoopAfter)
-                    appendLine("NEXT: 実験直後にAndroidのバグレポートを取得し、bugreport.zipをChatGPTへ渡してください。")
+                    appendLine("NEXT: CAPTURE成功後すぐ『bugreport ZIPをDownloadへ保存』を押してください。")
                 }.trimEnd()
+                status.text = if (result.contains("CAPTURE_MARKERS_COMPLETE")) "capture完了。次にbugreportを生成してください" else "capture結果を確認してください"
+            }
+        }.start()
+    }
+
+    private fun runBugreport() {
+        ensureBound()
+        status.text = "bugreport生成中… 数分かかる場合があります"
+        val existing = output.text.toString()
+        output.text = existing + "\n\n=== BUGREPORT REQUESTED ===\n生成中…"
+        Thread {
+            val result = remote?.runCatching { generateBugreport("BudsSwitch-SSC-Wire") }
+                ?.getOrElse { "bugreport remote error: ${it.javaClass.simpleName}: ${it.message}" }
+                ?: "Service未接続"
+            runOnUiThread {
+                output.text = existing + "\n\n" + result
+                status.text = if (result.contains("BUGREPORT_READY")) "bugreport保存完了。Downloadフォルダを確認してください" else "bugreport生成に失敗しました"
             }
         }.start()
     }
