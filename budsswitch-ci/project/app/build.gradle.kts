@@ -11,8 +11,8 @@ android {
         applicationId = "jp.example.budsswitch"
         minSdk = 31
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.2.9-mvp"
+        versionCode = 12
+        versionName = "0.3.0-mvp"
     }
 
     buildTypes {
@@ -52,6 +52,7 @@ dependencies {
 
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
 
     testImplementation("junit:junit:4.13.2")
 }
