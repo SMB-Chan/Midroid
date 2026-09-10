@@ -24,8 +24,8 @@ class PeerCoordinator(
 
     companion object {
         private const val PORT = 43173
-        private const val HEARTBEAT_MS = 750L
-        private const val STALE_MS = 3_500L
+        private const val HEARTBEAT_MS = 350L
+        private const val STALE_MS = 2_200L
         private const val MAX_PACKET = 2_048
     }
 
@@ -54,25 +54,23 @@ class PeerCoordinator(
     init {
         require(secret.length >= 6) { "Peer Link code must have at least 6 characters" }
         receiver.execute(::receiveLoop)
-        scheduler.scheduleAtFixedRate(
-            { heartbeatAndPrune() },
-            0,
-            HEARTBEAT_MS,
-            TimeUnit.MILLISECONDS
-        )
+        scheduler.scheduleAtFixedRate({ heartbeatAndPrune() }, 0, HEARTBEAT_MS, TimeUnit.MILLISECONDS)
     }
 
     fun updateLocal(score: Int, reason: String, sinceMs: Long) {
-        localScore = score.coerceIn(0, 100)
+        val newScore = score.coerceIn(0, 100)
+        val changed = newScore != localScore || reason != localReason || sinceMs != localSinceMs
+        localScore = newScore
         localReason = reason
         localSinceMs = sinceMs
+        // Do not wait for the next periodic heartbeat when playback/call state changes.
+        if (changed && running.get()) runCatching { scheduler.execute(::heartbeatAndPrune) }
     }
 
     fun snapshot(): List<PeerState> = peers.values.sortedBy { it.id }
 
     private fun heartbeatAndPrune() {
         if (!running.get()) return
-        val nowWall = System.currentTimeMillis()
         val payload = PeerProtocol.encode(
             secret = secret,
             budsAddress = budsAddress,
@@ -81,13 +79,10 @@ class PeerCoordinator(
             score = localScore,
             reason = localReason,
             sinceMs = localSinceMs,
-            sentMs = nowWall
+            sentMs = System.currentTimeMillis()
         )
-
         broadcastAddresses().forEach { address ->
-            runCatching {
-                socket.send(DatagramPacket(payload, payload.size, address, PORT))
-            }
+            runCatching { socket.send(DatagramPacket(payload, payload.size, address, PORT)) }
         }
 
         val nowElapsed = SystemClock.elapsedRealtime()
@@ -115,8 +110,13 @@ class PeerCoordinator(
                     receivedAtElapsedMs = SystemClock.elapsedRealtime()
                 ) ?: continue
                 if (state.id == localId) continue
-                peers[state.id] = state
-                onPeersChanged(snapshot())
+                val previous = peers.put(state.id, state)
+                val meaningfulChange = previous == null ||
+                    previous.score != state.score ||
+                    previous.reason != state.reason ||
+                    previous.sinceMs != state.sinceMs ||
+                    previous.name != state.name
+                if (meaningfulChange) onPeersChanged(snapshot())
             } catch (_: Throwable) {
                 if (!running.get()) break
             }
@@ -131,9 +131,7 @@ class PeerCoordinator(
             while (interfaces.hasMoreElements()) {
                 val network = interfaces.nextElement()
                 if (!network.isUp || network.isLoopback) continue
-                network.interfaceAddresses.forEach { iface ->
-                    iface.broadcast?.let(addresses::add)
-                }
+                network.interfaceAddresses.forEach { iface -> iface.broadcast?.let(addresses::add) }
             }
         }
         return addresses
@@ -142,19 +140,13 @@ class PeerCoordinator(
     override fun close() {
         if (!running.getAndSet(false)) return
         runCatching { socket.close() }
-        receiver.shutdownNow()
-        scheduler.shutdownNow()
-        peers.clear()
+        receiver.shutdownNow(); scheduler.shutdownNow(); peers.clear()
     }
 
     private fun stableDeviceId(context: Context): String {
-        val androidId = Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ANDROID_ID
-        ).orEmpty()
-        val raw = "$androidId|${context.packageName}".toByteArray()
+        val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID).orEmpty()
         return MessageDigest.getInstance("SHA-256")
-            .digest(raw)
+            .digest("$androidId|${context.packageName}".toByteArray())
             .joinToString("") { "%02x".format(it) }
             .take(16)
     }
