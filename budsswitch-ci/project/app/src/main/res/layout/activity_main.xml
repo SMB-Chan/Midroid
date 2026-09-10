@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="BudsSwitch MVP"
+            android:textAppearance="?attr/textAppearanceHeadlineMedium" />
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="初期化中…" />
+
+        <Button
+            android:id="@+id/permissionButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Android権限を許可" />
+
+        <Button
+            android:id="@+id/shizukuButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Shizuku権限を許可 / 接続" />
+
+        <Button
+            android:id="@+id/notificationAccessButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="通知アクセスを開く（メディア検出）" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="ペアリング済みBluetooth機器" />
+
+        <Spinner
+            android:id="@+id/deviceSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:id="@+id/refreshButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="機器一覧を更新" />
+
+        <Button
+            android:id="@+id/connectButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="この端末へ接続" />
+
+        <Button
+            android:id="@+id/disconnectButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="切断" />
+
+        <Button
+            android:id="@+id/startAutoButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="自動切替監視を開始" />
+
+        <Button
+            android:id="@+id/stopAutoButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="自動切替監視を停止" />
+
+        <TextView
+            android:id="@+id/logText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:fontFamily="monospace"
+            android:textIsSelectable="true" />
+    </LinearLayout>
+</ScrollView>

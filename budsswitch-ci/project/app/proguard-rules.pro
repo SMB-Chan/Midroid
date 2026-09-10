@@ -1,0 +1,2 @@
+-keep class jp.example.budsswitch.privileged.** { *; }
+-keep class rikka.shizuku.** { *; }
