@@ -5,23 +5,25 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothProfile
 import android.content.AttributionSource
 import android.content.Context
+import android.os.IBinder
 import android.os.Process
 import androidx.annotation.Keep
 import java.lang.reflect.InvocationTargetException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import rikka.shizuku.SystemServiceHelper
 
 /**
  * Runs as a Shizuku UserService (normally shell uid=2000).
  *
- * API 35 already contains hidden BluetoothDevice.connect()/disconnect() methods that
- * connect/disconnect all enabled profiles. We try those first. If an OEM blocks them,
- * we fall back to hidden BluetoothA2dp/BluetoothHeadset profile calls independently.
+ * Android 15's BluetoothAdapter.createAdapter() goes through
+ * BluetoothFrameworkInitializer. That initializer is not guaranteed to be populated in a
+ * Shizuku app_process/UserService, so on real devices createAdapter() can return null even while
+ * bluetooth_manager is available from ServiceManager.
  *
- * The adapter is deliberately created with a shell/root AttributionSource. A Shizuku
- * UserService loads the app code into a privileged process, and using the app's normal
- * AttributionSource can otherwise make Bluetooth permission attribution disagree with
- * the Binder caller UID.
+ * Therefore this service obtains the bluetooth_manager Binder directly and constructs the hidden
+ * BluetoothAdapter(IBluetoothManager, AttributionSource) instance by reflection. This keeps the
+ * Binder caller and attribution on the shell/root identity used by Shizuku.
  */
 @Keep
 class PrivilegedBluetoothService(private val context: Context) :
@@ -79,13 +81,22 @@ class PrivilegedBluetoothService(private val context: Context) :
             .setPackageName(attributionPackageForUid(uid))
             .build()
 
-        val method = BluetoothAdapter::class.java.getDeclaredMethod(
-            "createAdapter",
+        val binder: IBinder = SystemServiceHelper.getSystemService("bluetooth_manager")
+            ?: error("ServiceManager bluetooth_manager returned null")
+
+        val managerInterface = Class.forName("android.bluetooth.IBluetoothManager")
+        val managerStub = Class.forName("android.bluetooth.IBluetoothManager\$Stub")
+        val manager = managerStub
+            .getMethod("asInterface", IBinder::class.java)
+            .invoke(null, binder)
+            ?: error("IBluetoothManager.Stub.asInterface returned null")
+
+        val constructor = BluetoothAdapter::class.java.getDeclaredConstructor(
+            managerInterface,
             AttributionSource::class.java
         )
-        method.isAccessible = true
-        return method.invoke(null, source) as? BluetoothAdapter
-            ?: error("BluetoothAdapter.createAdapter returned null")
+        constructor.isAccessible = true
+        return constructor.newInstance(manager, source) as BluetoothAdapter
     }
 
     private fun attributionPackageForUid(uid: Int): String = when (uid) {
