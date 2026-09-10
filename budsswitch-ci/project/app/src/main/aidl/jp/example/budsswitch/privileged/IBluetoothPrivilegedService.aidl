@@ -5,5 +5,6 @@ interface IBluetoothPrivilegedService {
     String connectDevice(String address);
     String disconnectDevice(String address);
     String connectionSummary(String address);
+    String codecDiagnostics(String address);
     void destroy();
 }
