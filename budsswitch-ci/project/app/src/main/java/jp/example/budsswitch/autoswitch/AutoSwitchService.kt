@@ -30,15 +30,14 @@ class AutoSwitchService : Service() {
     companion object {
         private const val CHANNEL = "buds_switch"
         private const val NOTIFICATION_ID = 1001
-        private const val POLL_MS = 750L
-        private const val MEDIA_HOLD_MS = 1_500L
-        private const val WINNER_STABLE_MS = 800L
-        private const val ACTION_GAP_MS = 1_500L
-        private const val OWNERSHIP_CACHE_MS = 1_200L
+        private const val POLL_MS = 350L
+        private const val MEDIA_HOLD_MS = 900L
+        private const val WINNER_STABLE_MS = 250L
+        private const val ACTION_GAP_MS = 900L
+        private const val OWNERSHIP_CACHE_MS = 300L
     }
 
     private val handler = Handler(Looper.getMainLooper())
-
     @Volatile private var callActive = false
     @Volatile private var peers: List<PeerState> = emptyList()
 
@@ -66,11 +65,7 @@ class AutoSwitchService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        startForeground(
-            NOTIFICATION_ID,
-            notification("自動切替を監視中")
-        )
-
+        startForeground(NOTIFICATION_ID, notification("自動切替を監視中"))
         ShizukuBridge.bindUserService()
         setupPeerLink()
         registerCallListener()
@@ -86,12 +81,13 @@ class AutoSwitchService : Service() {
         }
 
         peerCoordinator = runCatching {
-            PeerCoordinator(
-                context = this,
-                budsAddress = address,
-                secret = code
-            ) { snapshot ->
+            PeerCoordinator(this, address, code) { snapshot ->
                 peers = snapshot
+                // PeerCoordinator only invokes this on meaningful demand changes. React now
+                // instead of waiting up to one poll interval; calls are always immediate.
+                handler.post {
+                    evaluateAndArbitrate(forceImmediate = snapshot.any { it.score >= 100 })
+                }
             }
         }.onSuccess {
             updateNotification("自動切替を監視中 / Peer Link: ON")
@@ -102,15 +98,12 @@ class AutoSwitchService : Service() {
 
     private fun registerCallListener() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
-            != PackageManager.PERMISSION_GRANTED
-        ) return
-
+            != PackageManager.PERMISSION_GRANTED) return
         telephonyManager = getSystemService(TelephonyManager::class.java)
         val callback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
             override fun onCallStateChanged(state: Int) {
                 callActive = state == TelephonyManager.CALL_STATE_RINGING ||
                     state == TelephonyManager.CALL_STATE_OFFHOOK
-                // Calls are priority 100, so do not wait for the regular polling interval.
                 evaluateAndArbitrate(forceImmediate = callActive)
             }
         }
@@ -126,29 +119,17 @@ class AutoSwitchService : Service() {
         val mediaRaw = isMediaPlaying()
         if (mediaRaw) {
             if (mediaDetectedAtElapsed == null) mediaDetectedAtElapsed = nowElapsed
-        } else {
-            mediaDetectedAtElapsed = null
-        }
+        } else mediaDetectedAtElapsed = null
         val mediaEffective = mediaRaw &&
             nowElapsed - (mediaDetectedAtElapsed ?: nowElapsed) >= MEDIA_HOLD_MS
 
         val newScore: Int
         val newReason: String
         when {
-            callActive -> {
-                newScore = 100
-                newReason = "call"
-            }
-            mediaEffective -> {
-                newScore = 50
-                newReason = "media"
-            }
-            else -> {
-                newScore = 0
-                newReason = "idle"
-            }
+            callActive -> { newScore = 100; newReason = "call" }
+            mediaEffective -> { newScore = 50; newReason = "media" }
+            else -> { newScore = 0; newReason = "idle" }
         }
-
         if (newScore != localScore || newReason != localReason) {
             localScore = newScore
             localReason = newReason
@@ -158,24 +139,22 @@ class AutoSwitchService : Service() {
         val coordinator = peerCoordinator
         coordinator?.updateLocal(localScore, localReason, localSinceWallMs)
         val localId = coordinator?.localId ?: "local"
-        val localName = coordinator?.localName ?: android.os.Build.MODEL
         val local = DemandCandidate(
             id = localId,
-            name = localName,
+            name = coordinator?.localName ?: android.os.Build.MODEL,
             score = localScore,
             reason = localReason,
             sinceMs = localSinceWallMs
         )
-
         val winner = PeerArbitrator.winner(local, peers)
         if (winner?.id != lastWinnerId) {
             lastWinnerId = winner?.id
             winnerSinceElapsed = nowElapsed
         }
-
         if (winner == null) return
-        val stable = forceImmediate ||
-            winner.score >= 100 ||
+
+        val decisivePeer = winner.id != localId && winner.score > localScore
+        val stable = forceImmediate || winner.score >= 100 || decisivePeer ||
             nowElapsed - winnerSinceElapsed >= WINNER_STABLE_MS
         if (!stable) return
 
@@ -187,17 +166,12 @@ class AutoSwitchService : Service() {
     }
 
     private fun reclaim(address: String, reason: String, nowElapsed: Long) {
-        if (!ShizukuBridge.ready()) {
-            ShizukuBridge.bindUserService()
-            return
-        }
-        if (nowElapsed - lastActionElapsed < ACTION_GAP_MS) return
+        if (!ShizukuBridge.ready()) { ShizukuBridge.bindUserService(); return }
+        if (reason != "call" && nowElapsed - lastActionElapsed < ACTION_GAP_MS) return
 
         val summary = ownershipSummary(address, nowElapsed)
-        val alreadyOwned = when (reason) {
-            "call" -> summary.contains("HFP=connected")
-            else -> summary.contains("A2DP=connected")
-        }
+        val alreadyOwned = if (reason == "call") summary.contains("HFP=connected")
+        else summary.contains("A2DP=connected")
         if (alreadyOwned) return
 
         val result = ShizukuBridge.connect(address)
@@ -208,7 +182,7 @@ class AutoSwitchService : Service() {
 
     private fun yieldToPeer(address: String, winner: DemandCandidate, nowElapsed: Long) {
         if (!ShizukuBridge.ready()) return
-        if (nowElapsed - lastActionElapsed < ACTION_GAP_MS) return
+        if (winner.score < 100 && nowElapsed - lastActionElapsed < ACTION_GAP_MS) return
 
         val summary = ownershipSummary(address, nowElapsed)
         val owned = summary.contains("A2DP=connected") || summary.contains("HFP=connected")
@@ -221,21 +195,15 @@ class AutoSwitchService : Service() {
     }
 
     private fun ownershipSummary(address: String, nowElapsed: Long): String {
-        if (nowElapsed - lastOwnershipCheckElapsed < OWNERSHIP_CACHE_MS) {
-            return lastOwnershipSummary
-        }
+        if (nowElapsed - lastOwnershipCheckElapsed < OWNERSHIP_CACHE_MS) return lastOwnershipSummary
         lastOwnershipSummary = ShizukuBridge.summary(address)
         lastOwnershipCheckElapsed = nowElapsed
         return lastOwnershipSummary
     }
 
     private fun isMediaPlaying(): Boolean {
-        val enabled = Settings.Secure.getString(
-            contentResolver,
-            "enabled_notification_listeners"
-        ) ?: return false
+        val enabled = Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: return false
         if (!enabled.contains(packageName)) return false
-
         return runCatching {
             val manager = getSystemService(MediaSessionManager::class.java)
             val component = ComponentName(this, BudsNotificationListener::class.java)
@@ -249,40 +217,28 @@ class AutoSwitchService : Service() {
         }.getOrDefault(false)
     }
 
-    private fun notification(text: String) =
-        NotificationCompat.Builder(this, CHANNEL)
-            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle("BudsSwitch")
-            .setContentText(text.take(160))
-            .setOngoing(true)
-            .build()
+    private fun notification(text: String) = NotificationCompat.Builder(this, CHANNEL)
+        .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
+        .setContentTitle("BudsSwitch")
+        .setContentText(text.take(160))
+        .setOngoing(true)
+        .build()
 
     private fun updateNotification(text: String) {
-        getSystemService(NotificationManager::class.java).notify(
-            NOTIFICATION_ID,
-            notification(text)
-        )
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text))
     }
 
     private fun createChannel() {
-        getSystemService(NotificationManager::class.java)
-            .createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL,
-                    "BudsSwitch Auto Switch",
-                    NotificationManager.IMPORTANCE_LOW
-                )
-            )
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL, "BudsSwitch Auto Switch", NotificationManager.IMPORTANCE_LOW)
+        )
     }
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
-        peerCoordinator?.close()
-        peerCoordinator = null
+        peerCoordinator?.close(); peerCoordinator = null
         if (::telephonyManager.isInitialized) {
-            telephonyCallback?.let {
-                runCatching { telephonyManager.unregisterTelephonyCallback(it) }
-            }
+            telephonyCallback?.let { runCatching { telephonyManager.unregisterTelephonyCallback(it) } }
         }
         super.onDestroy()
     }
