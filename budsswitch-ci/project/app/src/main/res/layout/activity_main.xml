@@ -13,7 +13,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="BudsSwitch v0.2.4"
+            android:text="BudsSwitch v0.2.5"
             android:textAppearance="?attr/textAppearanceHeadlineMedium" />
 
         <TextView
@@ -75,7 +75,7 @@
             android:id="@+id/codecDiagnosticsButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="SSC / A2DP Codecを分析" />
+            android:text="SSC / UHQ Vendor IDを分析" />
 
         <TextView
             android:id="@+id/codecDiagnosticsText"
