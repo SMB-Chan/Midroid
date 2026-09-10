@@ -8,7 +8,9 @@ import android.content.Context
 import android.os.IBinder
 import android.os.Process
 import androidx.annotation.Keep
+import java.lang.reflect.Constructor
 import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Modifier
 import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -18,37 +20,41 @@ import rikka.shizuku.SystemServiceHelper
 class PrivilegedBluetoothService(private val context: Context) :
     IBluetoothPrivilegedService.Stub() {
 
+    @Volatile private var adapterBootstrap = "not-initialized"
     private val adapter: BluetoothAdapter by lazy { createPrivilegedAdapter() }
 
     override fun ping(): String = buildString {
         append("ok uid=${Process.myUid()} pid=${Process.myPid()} api=${android.os.Build.VERSION.SDK_INT}")
         append(" attribution=${attributionPackageForUid(Process.myUid())}")
+        // Force adapter bootstrap once so Samsung/AOSP differences are visible immediately.
+        runCatching { adapter }.onFailure { adapterBootstrap = "FAILED:${rootMessageOnly(it)}" }
+        append(" adapter=$adapterBootstrap")
     }
 
     override fun connectDevice(address: String): String = runCatching {
         validate(address)
         val device = adapter.getRemoteDevice(address)
         val allProfiles = invokeDeviceInt(device, "connect")
-        if (allProfiles == 0) return@runCatching "all-profiles=success"
+        if (allProfiles == 0) return@runCatching "all-profiles=success; adapter=$adapterBootstrap"
 
         val a2dp = invokeProfile(BluetoothProfile.A2DP, device, "connect")
         val headset = invokeProfile(BluetoothProfile.HEADSET, device, "connect")
         val primary = if (allProfiles == Int.MIN_VALUE) "all-profiles API unavailable"
         else "all-profiles result=$allProfiles"
-        "$primary; fallback A2DP=$a2dp HFP=$headset"
+        "$primary; fallback A2DP=$a2dp HFP=$headset; adapter=$adapterBootstrap"
     }.getOrElse { rootMessage("connect failed", it) }
 
     override fun disconnectDevice(address: String): String = runCatching {
         validate(address)
         val device = adapter.getRemoteDevice(address)
         val allProfiles = invokeDeviceInt(device, "disconnect")
-        if (allProfiles == 0) return@runCatching "all-profiles=success"
+        if (allProfiles == 0) return@runCatching "all-profiles=success; adapter=$adapterBootstrap"
 
         val headset = invokeProfile(BluetoothProfile.HEADSET, device, "disconnect")
         val a2dp = invokeProfile(BluetoothProfile.A2DP, device, "disconnect")
         val primary = if (allProfiles == Int.MIN_VALUE) "all-profiles API unavailable"
         else "all-profiles result=$allProfiles"
-        "$primary; fallback HFP=$headset A2DP=$a2dp"
+        "$primary; fallback HFP=$headset A2DP=$a2dp; adapter=$adapterBootstrap"
     }.getOrElse { rootMessage("disconnect failed", it) }
 
     override fun connectionSummary(address: String): String = runCatching {
@@ -63,7 +69,7 @@ class PrivilegedBluetoothService(private val context: Context) :
         validate(address)
         val device = adapter.getRemoteDevice(address)
         val proxy = acquireProfile(BluetoothProfile.A2DP)
-            ?: return@runCatching "A2DP proxy unavailable"
+            ?: return@runCatching "A2DP proxy unavailable / adapter=$adapterBootstrap"
         try {
             val statusMethod = proxy.javaClass.getMethod("getCodecStatus", BluetoothDevice::class.java)
             val status = statusMethod.invoke(proxy, device)
@@ -89,8 +95,9 @@ class PrivilegedBluetoothService(private val context: Context) :
                 .distinctBy { (id, _) -> normalizeCodecId(id) }
 
             buildString {
-                appendLine("=== A2DP codec diagnostics v2 ===")
+                appendLine("=== A2DP codec diagnostics v3 ===")
                 appendLine("device=$address")
+                appendLine("adapterBootstrap=$adapterBootstrap")
                 appendLine("current=${formatCodec(current)}")
                 appendLine()
                 appendLine("-- platform supported source codec types (${supported.size}) --")
@@ -105,11 +112,8 @@ class PrivilegedBluetoothService(private val context: Context) :
                 selectable.forEachIndexed { i, codec -> appendLine("S$i ${formatCodec(codec)}") }
                 appendLine()
                 appendLine("-- Samsung Company ID 0x0075 visible to this source stack --")
-                if (samsungTypes.isEmpty()) {
-                    appendLine("none")
-                } else {
-                    samsungTypes.forEach { (_, type) -> appendLine(formatCodecType(type)) }
-                }
+                if (samsungTypes.isEmpty()) appendLine("none")
+                else samsungTypes.forEach { (_, type) -> appendLine(formatCodecType(type)) }
             }.trimEnd()
         } finally {
             runCatching { adapter.closeProfileProxy(BluetoothProfile.A2DP, proxy) }
@@ -154,9 +158,7 @@ class PrivilegedBluetoothService(private val context: Context) :
         val vendorCodecId = (normalized ushr 24) and 0xffffL
         val parsed = if (audioCodecId == 0xffL) {
             "vendor audio=0xff company=0x%04x vendorCodec=0x%04x".format(
-                Locale.US,
-                companyId,
-                vendorCodecId
+                Locale.US, companyId, vendorCodecId
             )
         } else {
             "standard audio=0x%02x".format(Locale.US, audioCodecId)
@@ -172,9 +174,7 @@ class PrivilegedBluetoothService(private val context: Context) :
         (type?.let { callNoArg(it, "getCodecId") } as? Number)?.toLong()
 
     private fun normalizeCodecId(id: Long): Long = id and 0xffffffffffL
-
-    private fun codecIdHex(id: Long): String =
-        String.format(Locale.US, "0x%010x", normalizeCodecId(id))
+    private fun codecIdHex(id: Long): String = String.format(Locale.US, "0x%010x", normalizeCodecId(id))
 
     private fun isSamsungVendorCodec(id: Long): Boolean {
         val n = normalizeCodecId(id)
@@ -194,25 +194,10 @@ class PrivilegedBluetoothService(private val context: Context) :
 
     private fun decodeSampleRate(mask: Int): String = decodeMask(
         mask,
-        listOf(
-            0x1 to "44.1k",
-            0x2 to "48k",
-            0x4 to "88.2k",
-            0x8 to "96k",
-            0x10 to "176.4k",
-            0x20 to "192k"
-        )
+        listOf(0x1 to "44.1k", 0x2 to "48k", 0x4 to "88.2k", 0x8 to "96k", 0x10 to "176.4k", 0x20 to "192k")
     )
-
-    private fun decodeBits(mask: Int): String = decodeMask(
-        mask,
-        listOf(0x1 to "16", 0x2 to "24", 0x4 to "32")
-    )
-
-    private fun decodeChannel(mask: Int): String = decodeMask(
-        mask,
-        listOf(0x1 to "MONO", 0x2 to "STEREO")
-    )
+    private fun decodeBits(mask: Int): String = decodeMask(mask, listOf(0x1 to "16", 0x2 to "24", 0x4 to "32"))
+    private fun decodeChannel(mask: Int): String = decodeMask(mask, listOf(0x1 to "MONO", 0x2 to "STEREO"))
 
     private fun decodeMask(mask: Int, values: List<Pair<Int, String>>): String {
         if (mask == 0) return "none"
@@ -224,6 +209,14 @@ class PrivilegedBluetoothService(private val context: Context) :
         target.javaClass.getMethod(methodName).invoke(target)
     }.getOrNull()
 
+    /**
+     * Build a BluetoothAdapter in a Shizuku app_process environment.
+     *
+     * AOSP API 35 exposes the hidden (IBluetoothManager, AttributionSource)
+     * constructor, but Samsung framework builds can change hidden constructor
+     * signatures.  We therefore try public/static bootstrap paths first, then
+     * discover constructors at runtime and populate compatible parameters.
+     */
     private fun createPrivilegedAdapter(): BluetoothAdapter {
         val uid = Process.myUid()
         val attributionUid = if (uid == 0) 1000 else uid
@@ -232,20 +225,107 @@ class PrivilegedBluetoothService(private val context: Context) :
             .setPackageName(attributionPackageForUid(uid))
             .build()
 
+        val failures = mutableListOf<String>()
+
+        // 1) Preferred hidden factory. On some Samsung builds this is usable even
+        // when the exact constructor signature differs from AOSP.
+        runCatching {
+            val m = BluetoothAdapter::class.java.getDeclaredMethod(
+                "createAdapter", AttributionSource::class.java
+            )
+            m.isAccessible = true
+            (m.invoke(null, source) as? BluetoothAdapter)
+                ?: error("createAdapter returned null")
+        }.onSuccess {
+            adapterBootstrap = "static-createAdapter"
+            return it
+        }.onFailure { failures += "createAdapter:${shortThrowable(it)}" }
+
+        // 2) Framework default adapter. Attribution is generated from the shell
+        // process itself, which is appropriate for a Shizuku UserService.
+        runCatching {
+            BluetoothAdapter.getDefaultAdapter() ?: error("getDefaultAdapter returned null")
+        }.onSuccess {
+            adapterBootstrap = "getDefaultAdapter"
+            return it
+        }.onFailure { failures += "getDefaultAdapter:${shortThrowable(it)}" }
+
+        // 3) Direct bluetooth_manager Binder + runtime constructor discovery.
         val binder: IBinder = SystemServiceHelper.getSystemService("bluetooth_manager")
-            ?: error("ServiceManager bluetooth_manager returned null")
+            ?: error("ServiceManager bluetooth_manager returned null; ${failures.joinToString(" | ")}")
         val managerInterface = Class.forName("android.bluetooth.IBluetoothManager")
         val managerStub = Class.forName("android.bluetooth.IBluetoothManager\$Stub")
         val manager = managerStub.getMethod("asInterface", IBinder::class.java)
             .invoke(null, binder)
             ?: error("IBluetoothManager.Stub.asInterface returned null")
 
-        val constructor = BluetoothAdapter::class.java.getDeclaredConstructor(
-            managerInterface,
-            AttributionSource::class.java
+        val constructors = BluetoothAdapter::class.java.declaredConstructors
+            .sortedWith(compareBy<Constructor<*>> { it.parameterCount }.thenBy { it.toString() })
+
+        for (constructor in constructors) {
+            val params = constructor.parameterTypes
+            if (params.none { it.isInstance(manager) || it.name == managerInterface.name }) continue
+
+            val args = Array<Any?>(params.size) { index ->
+                constructorArgument(
+                    type = params[index],
+                    manager = manager,
+                    managerInterface = managerInterface,
+                    source = source,
+                    binder = binder
+                )
+            }
+
+            runCatching {
+                constructor.isAccessible = true
+                constructor.newInstance(*args) as BluetoothAdapter
+            }.onSuccess {
+                adapterBootstrap = "runtime-ctor(${params.joinToString(",") { it.simpleName }})"
+                return it
+            }.onFailure {
+                failures += "ctor(${params.joinToString(",") { it.simpleName }}):${shortThrowable(it)}"
+            }
+        }
+
+        // Return constructor inventory in the error. This is deliberately shown
+        // in-app so a Samsung firmware-specific signature can be supported on the
+        // next iteration without logcat/root access.
+        val inventory = constructors.joinToString(" ; ") { c ->
+            "(${c.parameterTypes.joinToString(",") { it.name }})"
+        }
+        error(
+            "No compatible BluetoothAdapter bootstrap. failures=${failures.joinToString(" | ")} " +
+                "constructors=$inventory"
         )
-        constructor.isAccessible = true
-        return constructor.newInstance(manager, source) as BluetoothAdapter
+    }
+
+    private fun constructorArgument(
+        type: Class<*>,
+        manager: Any,
+        managerInterface: Class<*>,
+        source: AttributionSource,
+        binder: IBinder
+    ): Any? = when {
+        type.isInstance(manager) || type.name == managerInterface.name -> manager
+        type == AttributionSource::class.java -> source
+        Context::class.java.isAssignableFrom(type) -> context
+        IBinder::class.java.isAssignableFrom(type) -> binder
+        type == String::class.java -> attributionPackageForUid(Process.myUid())
+        type == Boolean::class.javaPrimitiveType || type == Boolean::class.java -> false
+        type == Int::class.javaPrimitiveType || type == Int::class.java -> 0
+        type == Long::class.javaPrimitiveType || type == Long::class.java -> 0L
+        type == Short::class.javaPrimitiveType || type == Short::class.java -> 0.toShort()
+        type == Byte::class.javaPrimitiveType || type == Byte::class.java -> 0.toByte()
+        type == Char::class.javaPrimitiveType || type == Char::class.java -> '\u0000'
+        type == Float::class.javaPrimitiveType || type == Float::class.java -> 0f
+        type == Double::class.javaPrimitiveType || type == Double::class.java -> 0.0
+        else -> null
+    }
+
+    private fun shortThrowable(t: Throwable): String {
+        var x = t
+        if (x is InvocationTargetException && x.targetException != null) x = x.targetException
+        return "${x.javaClass.simpleName}:${x.message ?: "(no message)"}"
     }
 
     private fun attributionPackageForUid(uid: Int): String = when (uid) {
@@ -258,9 +338,7 @@ class PrivilegedBluetoothService(private val context: Context) :
         val method = BluetoothDevice::class.java.getDeclaredMethod(methodName)
         method.isAccessible = true
         (method.invoke(device) as? Int) ?: Int.MIN_VALUE
-    } catch (_: Throwable) {
-        Int.MIN_VALUE
-    }
+    } catch (_: Throwable) { Int.MIN_VALUE }
 
     private fun invokeProfile(profile: Int, device: BluetoothDevice, methodName: String): String {
         val proxy = acquireProfile(profile) ?: return "proxy-unavailable"
@@ -309,10 +387,12 @@ class PrivilegedBluetoothService(private val context: Context) :
         else -> "disconnected"
     }
 
-    private fun rootMessage(prefix: String, t: Throwable): String {
+    private fun rootMessage(prefix: String, t: Throwable): String = "$prefix: ${rootMessageOnly(t)}"
+
+    private fun rootMessageOnly(t: Throwable): String {
         var x = t
         if (x is InvocationTargetException && x.targetException != null) x = x.targetException
-        return "$prefix: ${x.javaClass.simpleName}: ${x.message ?: "(no message)"}"
+        return "${x.javaClass.simpleName}: ${x.message ?: "(no message)"}"
     }
 
     override fun destroy() { System.exit(0) }
