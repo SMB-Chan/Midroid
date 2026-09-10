@@ -11,8 +11,8 @@ android {
         applicationId = "jp.example.budsswitch"
         minSdk = 31
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.1-mvp"
+        versionCode = 4
+        versionName = "0.2.2-mvp"
     }
 
     buildTypes {
@@ -39,8 +39,6 @@ android {
         viewBinding = true
     }
 
-    // The app intentionally uses non-SDK Bluetooth APIs from a Shizuku UserService.
-    // Do not publish this research build to Google Play as-is.
     dependenciesInfo {
         includeInApk = false
         includeInBundle = false
