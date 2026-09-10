@@ -55,3 +55,12 @@ jobs:
             /tmp/BudsSwitch-v0.4.1-debug.signing.txt
           if-no-files-found: error
           retention-days: 3
+
+      - name: Upload BudsSwitch source snapshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: BudsSwitch-v0.4.1-source
+          path: budsswitch-ci/project
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 3
