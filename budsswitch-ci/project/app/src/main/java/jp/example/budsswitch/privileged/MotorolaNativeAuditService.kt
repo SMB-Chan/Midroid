@@ -38,8 +38,8 @@ class MotorolaNativeAuditService(private val context: Context) : IMotorolaNative
 
         val libraryList = sh("""
             for d in /apex/com.android.btservices/lib64 /apex/com.android.bluetooth/lib64 /system/lib64 /system_ext/lib64 /product/lib64 /vendor/lib64 /odm/lib64; do
-              [ -d "$d" ] || continue
-              find "$d" -maxdepth 2 -type f -name '*.so' 2>/dev/null
+              [ -d "${'$'}d" ] || continue
+              find "${'$'}d" -maxdepth 2 -type f -name '*.so' 2>/dev/null
             done | grep -Ei '/[^/]*(bluetooth|libbt|bt_|a2dp|codec|lhdc|ldac|aptx|aac|audio|scalable)[^/]*\\.so$' | sort -u | head -n 320
         """.trimIndent(), 12_000)
 
@@ -56,10 +56,10 @@ class MotorolaNativeAuditService(private val context: Context) : IMotorolaNative
         """.trimIndent(), 14_000)
 
         val binaryHits = sh("""
-            files="$(for d in /apex/com.android.btservices/lib64 /apex/com.android.bluetooth/lib64 /system/lib64 /system_ext/lib64 /product/lib64 /vendor/lib64 /odm/lib64; do [ -d "$d" ] && find "$d" -maxdepth 2 -type f -name '*.so' 2>/dev/null; done | grep -Ei '/[^/]*(bluetooth|libbt|bt_|a2dp|codec|lhdc|ldac|aptx|audio|scalable)[^/]*\\.so$' | head -n 220)"
-            for f in $files; do
-              if grep -a -q -E 'Samsung Scalable|Samsung Seamless|SSC_UHQ|SEM_CODEC_TYPE_SSC_UHQ|CODEC_TYPE_SSC|libScalable_Encoder|ssc_encoder_(get_size|init|create)|ssc_encode' "$f" 2>/dev/null; then
-                echo "SSC_STRING_HIT $f"
+            files="$(for d in /apex/com.android.btservices/lib64 /apex/com.android.bluetooth/lib64 /system/lib64 /system_ext/lib64 /product/lib64 /vendor/lib64 /odm/lib64; do [ -d "${'$'}d" ] && find "${'$'}d" -maxdepth 2 -type f -name '*.so' 2>/dev/null; done | grep -Ei '/[^/]*(bluetooth|libbt|bt_|a2dp|codec|lhdc|ldac|aptx|audio|scalable)[^/]*\\.so$' | head -n 220)"
+            for f in ${'$'}files; do
+              if grep -a -q -E 'Samsung Scalable|Samsung Seamless|SSC_UHQ|SEM_CODEC_TYPE_SSC_UHQ|CODEC_TYPE_SSC|libScalable_Encoder|ssc_encoder_(get_size|init|create)|ssc_encode' "${'$'}f" 2>/dev/null; then
+                echo "SSC_STRING_HIT ${'$'}f"
               fi
             done | head -n 120
         """.trimIndent(), 18_000)
