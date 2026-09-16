@@ -3,7 +3,7 @@ package dev.midroid.app.config
 import java.net.URI
 import java.util.Locale
 
-data class InstanceConfig private constructor(val origin: String) {
+class InstanceConfig private constructor(val origin: String) {
     private val uri = URI(origin)
 
     fun owns(rawUrl: String): Boolean = runCatching {
@@ -12,6 +12,13 @@ data class InstanceConfig private constructor(val origin: String) {
             candidate.host.equals(uri.host, ignoreCase = true) &&
             effectivePort(candidate) == effectivePort(uri)
     }.getOrDefault(false)
+
+    override fun equals(other: Any?): Boolean =
+        other is InstanceConfig && origin == other.origin
+
+    override fun hashCode(): Int = origin.hashCode()
+
+    override fun toString(): String = "InstanceConfig(origin=$origin)"
 
     companion object {
         fun parse(raw: String): Result<InstanceConfig> = runCatching {

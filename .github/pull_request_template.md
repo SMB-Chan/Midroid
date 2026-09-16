@@ -4,7 +4,7 @@ Describe the focused problem and the change.
 
 ## Validation
 
-- [ ] `gradle lint testDebugUnitTest assembleDebug assembleRelease`
+- [ ] `./gradlew lint testDebugUnitTest assembleDebug assembleRelease`
 - [ ] Relevant behavior tested on an Android device/emulator where applicable
 - [ ] No signing keys, tokens, cookies, account exports or private content added
 

@@ -8,12 +8,12 @@ Current requirements:
 
 - JDK 17+
 - Android SDK 36
-- Gradle 9.6.0, or a compatible Android Studio installation
+- The checked-in Gradle wrapper (`./gradlew`, pinned to 9.6.0), or a compatible Android Studio installation
 
 Run the same core checks used by CI:
 
 ```text
-gradle lint testDebugUnitTest assembleDebug assembleRelease
+./gradlew lint testDebugUnitTest assembleDebug assembleRelease
 ```
 
 The release build can be compiled without the private update signing key, but only a build signed with the project's persistent release identity is suitable for the public update channel.

@@ -41,4 +41,12 @@ class InstanceConfigTest {
         assertFalse(instance.owns("https://cdn.example.com/file"))
         assertFalse(instance.owns("http://example.com/"))
     }
+
+    @Test
+    fun instancesWithSameOriginAreEqual() {
+        val first = InstanceConfig.parse("https://Example.com:443/notes/1").getOrThrow()
+        val second = InstanceConfig.parse("example.com").getOrThrow()
+        assertEquals(first, second)
+        assertEquals(first.hashCode(), second.hashCode())
+    }
 }

@@ -49,7 +49,7 @@ jobs:
           bash tools/test_release_version_code.sh
 
       - name: Verify debug and release builds
-        run: gradle --stacktrace lint testDebugUnitTest assembleDebug assembleRelease
+        run: ./gradlew --stacktrace lint testDebugUnitTest assembleDebug assembleRelease
 
       - name: Verify unsigned release output exists
         shell: bash

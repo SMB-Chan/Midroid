@@ -163,7 +163,7 @@ jobs:
           MIDROID_SIGNING_STORE_PASSWORD: ${{ secrets.MIDROID_SIGNING_STORE_PASSWORD }}
           MIDROID_SIGNING_KEY_ALIAS: ${{ secrets.MIDROID_SIGNING_KEY_ALIAS }}
           MIDROID_SIGNING_KEY_PASSWORD: ${{ secrets.MIDROID_SIGNING_KEY_PASSWORD }}
-        run: gradle --no-daemon --stacktrace lint testDebugUnitTest assembleRelease
+        run: ./gradlew --no-daemon --stacktrace lint testDebugUnitTest assembleRelease
 
       - name: Remove release keystore
         if: always()

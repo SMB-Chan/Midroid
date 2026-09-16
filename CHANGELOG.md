@@ -6,7 +6,14 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 ## [Unreleased]
 
-No unreleased user-facing changes.
+### Fixed
+
+- Harden `InstanceConfig` so instances can only be created through validated parsing; the previous `data class` `copy()` bypass is removed.
+- Correct the Eco power-policy documentation to match the implemented media-gesture behavior.
+
+### Added
+
+- Add a checked-in Gradle wrapper pinned to 9.6.0 so builds no longer require a manually installed Gradle.
 
 ## [0.1.4] - 2026-09-08
 

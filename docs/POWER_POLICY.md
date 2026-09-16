@@ -4,7 +4,7 @@
 
 - Requests a 60 Hz activity refresh rate.
 - Uses `RENDERER_PRIORITY_BOUND` while visible and allows the renderer to become waived when not visible.
-- Requires a user gesture for media playback.
+- Keeps the WebView media-gesture gate off so explicit Misskey lightbox playback is not rejected after the original tap task ends; Eco instead stops autoplay media and pauses media in the background.
 - Injects a reversible reduced-motion stylesheet after page load.
 - Stops autoplay media.
 

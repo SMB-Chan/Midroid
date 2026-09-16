@@ -96,14 +96,12 @@ Requirements:
 
 - JDK 17+
 - Android SDK 36
-- Android Studio Quail 4 (2026.1.4) or a compatible newer version, or Gradle 9.6.0
-
-A checked-in Gradle wrapper is not yet part of the project. Use Android Studio's configured Gradle or Gradle 9.6.0.
+- Android Studio Quail 4 (2026.1.4) or a compatible newer version, or JDK 17+ with the checked-in Gradle wrapper
 
 Run the core verification used by CI:
 
 ```text
-gradle lint testDebugUnitTest assembleDebug assembleRelease
+./gradlew lint testDebugUnitTest assembleDebug assembleRelease
 ```
 
 Without the release-signing environment variables, `assembleRelease` is suitable for compile/R8 verification but is **not** an official Midroid update APK.

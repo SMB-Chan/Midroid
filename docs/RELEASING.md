@@ -27,7 +27,7 @@ Never upload the keystore as a repository file, issue attachment, Actions artifa
 Before tagging a public version:
 
 - CI on `main` is green.
-- `gradle lint testDebugUnitTest assembleDebug assembleRelease` passes.
+- `./gradlew lint testDebugUnitTest assembleDebug assembleRelease` passes.
 - The candidate has been installed and exercised on at least one supported physical Android device.
 - App launch, login persistence, timeline navigation, settings, account switching, downloads and Back behavior have been checked.
 - System bars / display cutouts / IME do not obscure Midroid or Misskey controls.
@@ -62,7 +62,7 @@ The preflight artifact is retained only for seven days and is for release valida
 After the release commit is on `main`, the signed preflight/device/update checks are complete, and no release blocker remains, create and push the signed version tag. The `Public APK Release` workflow will:
 
 1. require all four signing secrets;
-2. install JDK 17, Android SDK 36 and Gradle 9.6.0;
+2. install JDK 17 and Android SDK 36 (Gradle is provided by the checked-in wrapper);
 3. run lint and JVM tests;
 4. build the release APK with the persistent update key;
 5. verify the APK signature;
