@@ -2,9 +2,11 @@ package dev.midroid.app
 
 import android.app.AlertDialog
 import android.app.DownloadManager
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -41,6 +43,7 @@ import dev.midroid.app.media.NativeAudioPlayerDialog
 import dev.midroid.app.media.NativeAudioRequest
 import dev.midroid.app.power.PowerMode
 import dev.midroid.app.power.WebViewPowerController
+import dev.midroid.app.push.PushNotifications
 import dev.midroid.app.ui.EdgeSwipeMenuLayout
 import dev.midroid.app.ui.SetupScreen
 import dev.midroid.app.web.ExternalNavigator
@@ -81,12 +84,21 @@ class MainActivity : ComponentActivity() {
         fileCallback = null
     }
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (!granted) {
+            Toast.makeText(this, R.string.push_permission_denied, Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         preferences = AppPreferences(this)
         accountRegistry = AccountRegistry(this)
         installBackHandler()
+        PushNotifications.ensureChannels(this)
 
         currentMode = preferences.loadPowerMode()
         currentTextScale = preferences.loadTextScale()
@@ -98,12 +110,60 @@ class MainActivity : ComponentActivity() {
 
         RuntimeDiagnostics.logAppStart(this, currentMode, currentInstance?.origin)
 
+        handlePushIntent(intent)
+
         val account = currentAccount
         if (account == null || currentInstance == null) {
             showSetup()
         } else {
             showBrowser(account.restoreUrl())
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handlePushIntent(intent)
+    }
+
+    private fun handlePushIntent(intent: Intent?) {
+        if (intent?.action != PushNotifications.REQUEST_OPEN_PUSH) return
+        val accountId = intent.getStringExtra(PushNotifications.EXTRA_ACCOUNT_ID)
+        val targetUrl = intent.getStringExtra(PushNotifications.EXTRA_TARGET_URL)
+        if (accountId.isNullOrBlank() || targetUrl.isNullOrBlank()) return
+
+        accounts = accountRegistry.loadAccounts()
+        val account = accounts.firstOrNull { it.id == accountId } ?: return
+        val instance = account.instanceConfig() ?: return
+        if (!instance.owns(targetUrl)) return
+
+        currentAccount = account
+        currentInstance = instance
+        accountRegistry.setActive(account.id)
+        accountRegistry.updateLastUrl(account.id, targetUrl)
+        pendingUrl = targetUrl
+        if (webView == null || visibleToUser) {
+            showBrowser(targetUrl)
+            pendingUrl = null
+        }
+        intent.action = null
+    }
+
+    fun requestPushPermissionIfNeeded() {
+        if (!PushNotifications.needsRuntimePermission()) return
+        if (PushNotifications.hasPermission(this)) return
+        if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.push_permission_title)
+                .setMessage(R.string.push_permission_message)
+                .setPositiveButton(R.string.push_permission_allow) { _, _ ->
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
+            return
+        }
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     override fun onStart() {

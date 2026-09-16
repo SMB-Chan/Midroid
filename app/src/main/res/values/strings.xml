@@ -71,5 +71,14 @@
     <string name="native_audio_position">%1$s / %2$s</string>
     <string name="native_audio_fallback">Play current Misskey audio with Android</string>
     <string name="native_audio_not_found">No playable Misskey audio source was detected on this screen yet.</string>
+    <string name="push_channel_mentions">Misskey mentions</string>
+    <string name="push_channel_mentions_description">Replies, mentions and other direct Misskey notifications.</string>
+    <string name="push_channel_general">Misskey updates</string>
+    <string name="push_channel_general_description">Other Misskey push notifications.</string>
+    <string name="push_notification_title">Misskey update (%1$s)</string>
+    <string name="push_permission_title">Misskey notifications are disabled</string>
+    <string name="push_permission_message">Allow Midroid to show Misskey push notifications. Midroid decrypts notifications on-device; the relay only forwards encrypted envelopes.</string>
+    <string name="push_permission_allow">Allow</string>
+    <string name="push_permission_denied">Notifications stay disabled. You can enable them later in Android settings.</string>
     <string name="close">Close</string>
 </resources>

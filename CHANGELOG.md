@@ -17,6 +17,8 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 - Add a checked-in Gradle wrapper pinned to 9.6.0 so builds no longer require a manually installed Gradle.
 - Expand JVM unit coverage for audio-request parsing, cache-quota boundaries, navigation state, playback policy, diagnostics and text scaling.
 - Add the Web Push on-device foundation: P-256 receiver keys, per-account subscription records, relay protocol v1 spec, transport-opaque envelope validation, RFC 8291 decryptor and `sw/register` payload builder (no network or delivery transport yet).
+- Bind push receiver keys to AndroidKeyStore AES-GCM wrapping with per-account rotation and revocation helpers.
+- Add the local notification display path: `POST_NOTIFICATIONS` permission flow, mention/general channels, decrypt-only renderer and tap routing to the owning account origin.
 
 ## [0.1.4] - 2026-09-08
 
