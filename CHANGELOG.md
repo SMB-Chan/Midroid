@@ -19,6 +19,7 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 - Add the Web Push on-device foundation: P-256 receiver keys, per-account subscription records, relay protocol v1 spec, transport-opaque envelope validation, RFC 8291 decryptor and `sw/register` payload builder (no network or delivery transport yet).
 - Bind push receiver keys to AndroidKeyStore AES-GCM wrapping with per-account rotation and revocation helpers.
 - Add the local notification display path: `POST_NOTIFICATIONS` permission flow, mention/general channels, decrypt-only renderer and tap routing to the owning account origin.
+- Add the MiAuth native auth foundation and sw/* API client: session URL builders, per-account token store, `sw/register`/`unregister`/`show-registration` request builders and response parsers (no automatic enrollment; network calls stay explicit).
 
 ## [0.1.4] - 2026-09-08
 
