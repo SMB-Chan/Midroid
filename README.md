@@ -70,7 +70,7 @@ Midroid is not a full browser and intentionally keeps a narrow security/maintena
 
 Current limitations include:
 
-- no native Web Push bridge yet;
+- no native Web Push bridge yet (on-device key/subscription/envelope/decrypt foundation exists; delivery transport and relay hosting are later stages — see `docs/PUSH_RELAY_PROTOCOL.md`);
 - no direct ownership of Misskey's internal WebSocket objects;
 - WebRTC camera/microphone permission is currently denied by the Midroid client;
 - compatibility can vary with Android System WebView and Misskey versions/configuration;
@@ -157,6 +157,7 @@ Native notifications are intentionally a separate subsystem. The compatibility t
 - `docs/LIFECYCLE.md`
 - `docs/BENCHMARKING.md`
 - `docs/NOTIFICATIONS.md`
+- `docs/PUSH_RELAY_PROTOCOL.md`
 - `docs/UPDATES.md`
 - `docs/RELEASING.md`
 

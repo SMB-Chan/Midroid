@@ -35,7 +35,7 @@ Eco and Balanced allow an invisible renderer to be treated as lower priority by 
 ## Deliberate limitations
 
 - Midroid cannot directly close Misskey's internal WebSocket objects because those references are owned by application JavaScript. Background timer suspension helps, but a later Misskey-aware bridge or network integration is needed to guarantee socket teardown.
-- Web Push is not implemented in the MVP. Native notifications are planned as a later stage.
+- Web Push runtime delivery is not implemented in the MVP. The on-device push foundation (receiver keys, subscription records, relay protocol v1, envelope validation, RFC 8291 decryptor, `sw/register` payload builder) exists as pure JVM units; transport, relay hosting, live-contract verification and notification display remain later stages.
 - WebRTC camera/microphone permissions are denied until a least-privilege permission design is added.
 - Only HTTPS instances are accepted in the MVP.
 - JVM tests cover pure policy/state logic. Android framework behavior (SDK-specific WebView calls and renderer recovery) still needs a dedicated Robolectric/instrumented-device test layer; this remains a measurement/test milestone rather than being simulated with brittle mocks in the MVP.

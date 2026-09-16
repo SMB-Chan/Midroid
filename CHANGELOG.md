@@ -16,6 +16,7 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 - Add a checked-in Gradle wrapper pinned to 9.6.0 so builds no longer require a manually installed Gradle.
 - Expand JVM unit coverage for audio-request parsing, cache-quota boundaries, navigation state, playback policy, diagnostics and text scaling.
+- Add the Web Push on-device foundation: P-256 receiver keys, per-account subscription records, relay protocol v1 spec, transport-opaque envelope validation, RFC 8291 decryptor and `sw/register` payload builder (no network or delivery transport yet).
 
 ## [0.1.4] - 2026-09-08
 

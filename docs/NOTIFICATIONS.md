@@ -93,3 +93,25 @@ For the 0.1 WebView MVP:
 7. prototype the relay as a separate component only after the WebView MVP is stable on real devices.
 
 The notification layer must never require weakening WebView origin isolation or SSL validation.
+
+## Foundation status
+
+The on-device push foundation is implemented as pure JVM units (no network, no
+delivery transport yet); the relay contract is specified in
+`PUSH_RELAY_PROTOCOL.md` v1:
+
+- implemented: `push.PushKeys` (P-256 pair + 16 B auth secret generation),
+  `push.PushKeyStore` (storage abstraction + in-memory impl),
+  `push.PushSubscription` + JSON codec + `PushSubscriptionStore`
+  (`midroid_push` preferences, per-account, fail-closed decode),
+  `push.RelayProtocol` (endpoint validation), `push.PushEnvelope`
+  (transport-opaque validation), `push.WebPushDecryptor` (RFC 8291 `aes128gcm`
+  decrypt, test-vector verified), `push.MisskeyPushRegistration`
+  (`sw/register` payload builder).
+- still missing: live `sw/register` schema/auth verification against a test
+  instance, `AndroidKeyStore` key binding + rotation, delivery transport
+  selection (after envelope-size measurement), relay server, notification
+  display + `POST_NOTIFICATIONS` UX.
+
+The 0.1 MVP decision above is unchanged: no background WebSocket, no broad JS
+bridge, no network wiring until the live-contract checklist passes.
