@@ -28,4 +28,19 @@ class TextScaleTest {
         assertEquals(130, TextScale.LARGE.resolveTextZoom(320, 600))
         assertEquals(145, TextScale.EXTRA_LARGE.resolveTextZoom(320, 600))
     }
+
+    @Test
+    fun persistedKeysResolveToExpectedScales() {
+        assertEquals(TextScale.AUTO, TextScale.fromKey("auto"))
+        assertEquals(TextScale.DEFAULT, TextScale.fromKey("100"))
+        assertEquals(TextScale.COMFORTABLE, TextScale.fromKey("115"))
+        assertEquals(TextScale.LARGE, TextScale.fromKey("130"))
+        assertEquals(TextScale.EXTRA_LARGE, TextScale.fromKey("145"))
+    }
+
+    @Test
+    fun autoScaleClampsToDocumentedBounds() {
+        assertEquals(100, TextScale.autoTextZoom(densityDpi = 0, screenWidthDp = 1200))
+        assertEquals(126, TextScale.autoTextZoom(densityDpi = 640, screenWidthDp = 1))
+    }
 }

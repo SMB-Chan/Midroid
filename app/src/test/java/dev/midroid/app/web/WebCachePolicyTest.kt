@@ -66,4 +66,37 @@ class WebCachePolicyTest {
             ),
         )
     }
+
+    @Test
+    fun storageBoundariesSelectExpectedTier() {
+        val belowGrowthFloor = 512L * mib - 1
+        assertEquals(
+            64L * mib,
+            WebCachePolicy.targetQuotaBytes(64L * mib, 96L * mib, belowGrowthFloor),
+        )
+        assertEquals(
+            96L * mib,
+            WebCachePolicy.targetQuotaBytes(64L * mib, 96L * mib, 512L * mib),
+        )
+        assertEquals(
+            128L * mib,
+            WebCachePolicy.targetQuotaBytes(64L * mib, 96L * mib, gib),
+        )
+        assertEquals(
+            256L * mib,
+            WebCachePolicy.targetQuotaBytes(64L * mib, 96L * mib, 2L * gib),
+        )
+    }
+
+    @Test
+    fun zeroOrNegativeAvailableSpaceKeepsCurrentQuota() {
+        assertEquals(
+            64L * mib,
+            WebCachePolicy.targetQuotaBytes(64L * mib, 96L * mib, 0L),
+        )
+        assertEquals(
+            64L * mib,
+            WebCachePolicy.targetQuotaBytes(64L * mib, 96L * mib, -1L),
+        )
+    }
 }

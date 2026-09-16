@@ -475,7 +475,7 @@ class MainActivity : ComponentActivity() {
         )
         created.webChromeClient = MidroidWebChromeClient(::launchFileChooser)
         created.setDownloadListener { downloadUrl, userAgent, contentDisposition, mimeType, _ ->
-            enqueueDownload(created, downloadUrl, userAgent, contentDisposition, mimeType)
+            enqueueDownload(downloadUrl, userAgent, contentDisposition, mimeType)
         }
 
         val requestNativeAudio = {
@@ -592,7 +592,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun enqueueDownload(
-        sourceWebView: WebView,
         url: String,
         userAgent: String?,
         contentDisposition: String?,

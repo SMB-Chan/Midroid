@@ -15,11 +15,7 @@ class NativeAudioHeaderPolicyTest {
 
     @Test
     fun sameOriginStillDropsSensitiveHeadersForRedirectingClient() {
-        val safe = NativeAudioHeaderPolicy.sanitize(
-            sourceUrl = "https://misskey.example/files/audio.ogg",
-            instanceBaseUrl = "https://misskey.example/",
-            headers = headers,
-        )
+        val safe = NativeAudioHeaderPolicy.sanitize(headers)
 
         assertEquals(mapOf("User-Agent" to "Midroid"), safe)
         assertFalse(safe.containsKey("Cookie"))
@@ -29,11 +25,7 @@ class NativeAudioHeaderPolicyTest {
 
     @Test
     fun crossOriginDropsCookieAndReferer() {
-        val safe = NativeAudioHeaderPolicy.sanitize(
-            sourceUrl = "https://cdn.example/audio.ogg",
-            instanceBaseUrl = "https://misskey.example/",
-            headers = headers,
-        )
+        val safe = NativeAudioHeaderPolicy.sanitize(headers)
 
         assertEquals(mapOf("User-Agent" to "Midroid"), safe)
     }

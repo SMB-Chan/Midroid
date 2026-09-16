@@ -209,14 +209,7 @@ class NativeAudioPlayerDialog(
         dialog = createdDialog
         createdDialog.show()
 
-        val trustedOrigin = headers.entries
-            .firstOrNull { (key, _) -> key.equals("Referer", ignoreCase = true) }
-            ?.value
-        val safeHeaders = NativeAudioHeaderPolicy.sanitize(
-            sourceUrl = request.sourceUrl,
-            instanceBaseUrl = trustedOrigin,
-            headers = headers,
-        )
+        val safeHeaders = NativeAudioHeaderPolicy.sanitize(headers)
 
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(CONNECT_TIMEOUT_MS)

@@ -42,4 +42,51 @@ class NativeAudioRequestTest {
             ),
         )
     }
+
+    @Test
+    fun `rejects missing source url param`() {
+        assertNull(NativeAudioRequest.parse("midroid-audio://play?title=Example+audio"))
+    }
+
+    @Test
+    fun `rejects blank source url`() {
+        assertNull(NativeAudioRequest.parse("midroid-audio://play?url=&title=Example"))
+    }
+
+    @Test
+    fun `blank title falls back to null`() {
+        val parsed = NativeAudioRequest.parse(
+            "midroid-audio://play?url=https%3A%2F%2Fmedia.example%2Faudio.mp3&title=%20%20",
+        )
+
+        requireNotNull(parsed)
+        assertNull(parsed.title)
+    }
+
+    @Test
+    fun `overlong title is truncated`() {
+        val longTitle = "a".repeat(500)
+        val parsed = NativeAudioRequest.parse(
+            "midroid-audio://play?url=https%3A%2F%2Fmedia.example%2Faudio.mp3&title=$longTitle",
+        )
+
+        requireNotNull(parsed)
+        assertEquals(200, parsed.title?.length)
+    }
+
+    @Test
+    fun `accepts uppercase scheme and host`() {
+        val parsed = NativeAudioRequest.parse(
+            "MIDROID-AUDIO://PLAY?url=https%3A%2F%2Fmedia.example%2Faudio.mp3",
+        )
+
+        requireNotNull(parsed)
+        assertEquals("https://media.example/audio.mp3", parsed.sourceUrl)
+    }
+
+    @Test
+    fun `rejects malformed private url`() {
+        assertNull(NativeAudioRequest.parse("midroid-audio://"))
+        assertNull(NativeAudioRequest.parse("not a url"))
+    }
 }

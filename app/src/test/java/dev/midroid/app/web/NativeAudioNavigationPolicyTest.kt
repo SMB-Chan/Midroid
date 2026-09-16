@@ -30,4 +30,12 @@ class NativeAudioNavigationPolicyTest {
         assertFalse(NativeAudioNavigationPolicy.shouldDispatch("https", true))
         assertFalse(NativeAudioNavigationPolicy.shouldDispatch(null, true))
     }
+
+    @Test
+    fun schemeCheckIsCaseInsensitive() {
+        assertTrue(NativeAudioNavigationPolicy.isNativeAudioScheme("MIDROID-AUDIO"))
+        assertTrue(NativeAudioNavigationPolicy.isNativeAudioScheme("midroid-audio"))
+        assertFalse(NativeAudioNavigationPolicy.isNativeAudioScheme("https"))
+        assertFalse(NativeAudioNavigationPolicy.isNativeAudioScheme(null))
+    }
 }

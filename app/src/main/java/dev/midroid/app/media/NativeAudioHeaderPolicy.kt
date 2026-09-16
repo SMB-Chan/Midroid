@@ -4,11 +4,7 @@ import java.net.URI
 import java.util.Locale
 
 object NativeAudioHeaderPolicy {
-    fun sanitize(
-        sourceUrl: String,
-        instanceBaseUrl: String?,
-        headers: Map<String, String>,
-    ): Map<String, String> {
+    fun sanitize(headers: Map<String, String>): Map<String, String> {
         // DefaultHttpDataSource can follow HTTPS redirects to another host and fixed
         // default request properties may survive that hop. Until Midroid owns redirect
         // handling per hop, keep only non-sensitive transport metadata.

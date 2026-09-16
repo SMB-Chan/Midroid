@@ -43,4 +43,34 @@ class NavigationStateTest {
         assertFalse(NavigationState.isMisskeyLightboxUrl("https://misskey.example/#pswp-extra"))
         assertFalse(NavigationState.isMisskeyLightboxUrl("https://misskey.example/#other"))
     }
+
+    @Test
+    fun resetClearsPendingLoadState() {
+        val state = NavigationState("https://misskey.example/notes/123")
+        state.onPageStarted("https://misskey.example/notes/456")
+        state.reset("https://misskey.example/notes/789")
+
+        assertFalse(state.mainFrameLoading)
+        assertEquals("https://misskey.example/notes/789", state.currentUrl)
+        assertEquals("https://misskey.example/notes/789", state.lastCommittedUrl)
+        assertNull(state.interruptedReturnUrl())
+    }
+
+    @Test
+    fun cancelledLoadKeepsLastCommittedPage() {
+        val state = NavigationState("https://misskey.example/notes/123")
+        state.onPageStarted("https://misskey.example/notes/456")
+        state.onLoadCancelled()
+
+        assertFalse(state.mainFrameLoading)
+        assertNull(state.interruptedReturnUrl())
+    }
+
+    @Test
+    fun idleNonLightboxPageHasNoInterruptFallback() {
+        val state = NavigationState("https://misskey.example/notes/123")
+
+        assertFalse(state.isMisskeyLightboxOpen())
+        assertNull(state.interruptedReturnUrl())
+    }
 }

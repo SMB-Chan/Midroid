@@ -37,4 +37,28 @@ class DiagnosticOriginTest {
     fun missingInputIsExplicit() {
         assertEquals("none", diagnosticOrigin(null))
     }
+
+    @Test
+    fun normalizesUppercaseSchemeAndHost() {
+        assertEquals(
+            "https://example.social",
+            diagnosticOrigin("HTTPS://Example.Social/notes/abc"),
+        )
+    }
+
+    @Test
+    fun stripsDefaultHttpPort() {
+        assertEquals(
+            "http://example.social",
+            diagnosticOrigin("http://example.social:80/path"),
+        )
+    }
+
+    @Test
+    fun neverLeaksUserInfo() {
+        assertEquals(
+            "https://example.social",
+            diagnosticOrigin("https://user:secret@example.social/notes/1?token=x"),
+        )
+    }
 }

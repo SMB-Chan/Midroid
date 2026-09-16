@@ -16,6 +16,26 @@ class NativeAudioPlaybackPolicyTest {
     }
 
     @Test
+    fun hiddenHostNeverAutoStartsEvenWhenRequested() {
+        assertFalse(
+            NativeAudioPlaybackPolicy.shouldAutoStart(
+                hostVisible = false,
+                playbackRequested = true,
+            ),
+        )
+    }
+
+    @Test
+    fun visibleHostWithoutRequestNeverAutoStarts() {
+        assertFalse(
+            NativeAudioPlaybackPolicy.shouldAutoStart(
+                hostVisible = true,
+                playbackRequested = false,
+            ),
+        )
+    }
+
+    @Test
     fun visibleExplicitRequestMayStart() {
         assertTrue(
             NativeAudioPlaybackPolicy.shouldAutoStart(

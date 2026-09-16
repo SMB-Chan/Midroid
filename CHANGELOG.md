@@ -10,10 +10,12 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 - Harden `InstanceConfig` so instances can only be created through validated parsing; the previous `data class` `copy()` bypass is removed.
 - Correct the Eco power-policy documentation to match the implemented media-gesture behavior.
+- Simplify `NativeAudioHeaderPolicy.sanitize()` to its actually used input and drop the unused download WebView parameter.
 
 ### Added
 
 - Add a checked-in Gradle wrapper pinned to 9.6.0 so builds no longer require a manually installed Gradle.
+- Expand JVM unit coverage for audio-request parsing, cache-quota boundaries, navigation state, playback policy, diagnostics and text scaling.
 
 ## [0.1.4] - 2026-09-08
 
