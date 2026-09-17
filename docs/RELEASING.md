@@ -28,7 +28,11 @@ Before tagging a public version:
 
 - CI on `main` is green.
 - `./gradlew lint testDebugUnitTest assembleDebug assembleRelease` passes.
-- The candidate has been installed and exercised on at least one supported physical Android device.
+- `bash tools/check_advisories.sh` is clean for the resolved release closure
+  (see `docs/SBOM.md`); attach `advisory-report.txt` to the audit record.
+- The candidate has a completed `docs/release-audits/<version>.md` record
+  following `docs/DEVICE_REGRESSION.md` (device matrix, update-over-previous,
+  cert/versionCode checks).
 - App launch, login persistence, timeline navigation, settings, account switching, downloads and Back behavior have been checked.
 - System bars / display cutouts / IME do not obscure Midroid or Misskey controls.
 - Upgrade from the previous stable signed APK succeeds without clearing app data.

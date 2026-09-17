@@ -20,6 +20,8 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 - Bind push receiver keys to AndroidKeyStore AES-GCM wrapping with per-account rotation and revocation helpers.
 - Add the local notification display path: `POST_NOTIFICATIONS` permission flow, mention/general channels, decrypt-only renderer and tap routing to the owning account origin.
 - Add the MiAuth native auth foundation and sw/* API client: session URL builders, per-account token store, `sw/register`/`unregister`/`show-registration` request builders and response parsers (no automatic enrollment; network calls stay explicit).
+- Add SBOM coverage: `docs/SBOM.md` procedure plus `tools/check_advisories.sh` resolving the full release closure against OSV (75 coordinates clean at check time).
+- Add the device regression evidence kit: `docs/DEVICE_REGRESSION.md` unified matrix plus `docs/release-audits/TEMPLATE.md` record form, referenced from RELEASING and the PR template.
 
 ## [0.1.4] - 2026-09-08
 

@@ -158,6 +158,8 @@ Native notifications are intentionally a separate subsystem. The compatibility t
 - `docs/BENCHMARKING.md`
 - `docs/NOTIFICATIONS.md`
 - `docs/PUSH_RELAY_PROTOCOL.md`
+- `docs/SBOM.md`
+- `docs/DEVICE_REGRESSION.md`
 - `docs/UPDATES.md`
 - `docs/RELEASING.md`
 

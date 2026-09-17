@@ -6,6 +6,8 @@ Describe the focused problem and the change.
 
 - [ ] `./gradlew lint testDebugUnitTest assembleDebug assembleRelease`
 - [ ] Relevant behavior tested on an Android device/emulator where applicable
+      (release candidates: attach `docs/release-audits/<version>.md` per `docs/DEVICE_REGRESSION.md`)
+- [ ] Dependency changes re-ran `bash tools/check_advisories.sh` (see `docs/SBOM.md`)
 - [ ] No signing keys, tokens, cookies, account exports or private content added
 
 ## Compatibility / security impact
