@@ -101,4 +101,46 @@ class MisskeyApiTest {
             assertTrue(error.message!!.contains("token"))
         }
     }
+
+    @Test
+    fun revokeTokenBodyTargetsTheTokenItAuthenticatesWith() {
+        val body = MisskeyApi.revokeTokenBody("TOKEN123")
+        val fields = MisskeyApi.parseJsonFields(body)
+
+        assertEquals("TOKEN123", fields["i"])
+        assertEquals("TOKEN123", fields["token"])
+
+        try {
+            MisskeyApi.revokeTokenBody(" ")
+            throw AssertionError("Expected IllegalArgumentException.")
+        } catch (error: IllegalArgumentException) {
+            assertTrue(error.message!!.contains("token"))
+        }
+    }
+
+    @Test
+    fun revokeTokenOutcomeClassifiesHttpStatuses() {
+        assertEquals(MisskeyApi.RevokeTokenOutcome.REVOKED, MisskeyApi.revokeTokenOutcome(200))
+        assertEquals(MisskeyApi.RevokeTokenOutcome.REVOKED, MisskeyApi.revokeTokenOutcome(204))
+        assertEquals(MisskeyApi.RevokeTokenOutcome.ALREADY_GONE, MisskeyApi.revokeTokenOutcome(401))
+        assertEquals(MisskeyApi.RevokeTokenOutcome.UNSUPPORTED, MisskeyApi.revokeTokenOutcome(404))
+        assertEquals(MisskeyApi.RevokeTokenOutcome.FAILED, MisskeyApi.revokeTokenOutcome(400))
+        assertEquals(MisskeyApi.RevokeTokenOutcome.FAILED, MisskeyApi.revokeTokenOutcome(403))
+        assertEquals(MisskeyApi.RevokeTokenOutcome.FAILED, MisskeyApi.revokeTokenOutcome(500))
+        assertEquals(MisskeyApi.RevokeTokenOutcome.FAILED, MisskeyApi.revokeTokenOutcome(502))
+    }
+
+    @Test
+    fun parsesMetaVersion() {
+        val response = """
+            {"maintainerName":"example","maintainerEmail":null,"version":"2026.9.1",
+             "providesTarball":false,"features":{"registration":true},"cacheRemoteFiles":true}
+        """.trimIndent()
+        assertEquals("2026.9.1", MisskeyApi.parseMetaVersion(response))
+        assertNull(MisskeyApi.parseMetaVersion("""{"maintainerName":"example"}"""))
+        assertNull(MisskeyApi.parseMetaVersion("""{"version":null}"""))
+        assertNull(MisskeyApi.parseMetaVersion("null"))
+        assertNull(MisskeyApi.parseMetaVersion(""))
+        assertEquals("{}", MisskeyApi.metaBody())
+    }
 }

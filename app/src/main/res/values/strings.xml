@@ -19,6 +19,15 @@
     <string name="retry">Retry</string>
     <string name="account_added">Account profile added. Sign in to Misskey in this isolated session.</string>
     <string name="cancel">Cancel</string>
+    <string name="remove_account">Remove account</string>
+    <string name="remove_account_confirm">Remove</string>
+    <string name="remove_account_message">Remove %1$s?\n\nMidroid will unregister its push notifications, ask the instance to revoke this account\u2019s access token (Misskey 2026.9.0 or later), and delete the account\u2019s local data including its isolated WebView profile.</string>
+    <string name="removing_account">Removing account…</string>
+    <string name="account_removed">Account removed.</string>
+    <string name="token_revoke_failed">The access token could not be revoked on the instance, so it remains valid there. Revoke it from Misskey\u2019s account settings if necessary.</string>
+    <string name="token_revoke_unsupported">This instance does not support token revocation (Misskey 2026.9.0 or later required). The access token remains valid; revoke it from Misskey\u2019s account settings if necessary.</string>
+    <string name="instance_version">Misskey instance: %1$s</string>
+    <string name="instance_version_unavailable">Misskey instance version: unavailable</string>
     <string name="power_mode">Power mode</string>
     <string name="power_eco_title">Eco</string>
     <string name="power_eco_description">60 Hz preference, reduced motion and conservative media behavior.</string>

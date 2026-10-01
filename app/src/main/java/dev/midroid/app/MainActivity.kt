@@ -32,6 +32,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewFeature
+import dev.midroid.app.auth.AccountSessionRemoval
+import dev.midroid.app.auth.MisskeyApi
 import dev.midroid.app.config.AccountProfile
 import dev.midroid.app.config.AccountRegistry
 import dev.midroid.app.config.AppPreferences
@@ -53,10 +55,13 @@ import dev.midroid.app.web.MisskeyMediaFallbackBridge
 import dev.midroid.app.web.MisskeyUiTuner
 import dev.midroid.app.web.NavigationState
 import dev.midroid.app.web.WebViewFactory
+import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
     private lateinit var preferences: AppPreferences
     private lateinit var accountRegistry: AccountRegistry
+    private val sessionRemoval by lazy { AccountSessionRemoval(applicationContext) }
+    private val backgroundExecutor = Executors.newSingleThreadExecutor()
     private val powerController = WebViewPowerController()
     private val navigationState = NavigationState()
     private val uiTuner = MisskeyUiTuner()
@@ -299,6 +304,22 @@ class MainActivity : ComponentActivity() {
             )
         }
         setInsetContentView(screen)
+
+        val instance = currentInstance
+        if (instance != null) {
+            backgroundExecutor.execute {
+                val version = runCatching {
+                    val response = MisskeyApi.postJson(
+                        MisskeyApi.endpointUrl(instance.origin, "/api/meta"),
+                        MisskeyApi.metaBody(),
+                    )
+                    if (response.isSuccess()) MisskeyApi.parseMetaVersion(response.body) else null
+                }.getOrNull()
+                runOnUiThread {
+                    if (!isDestroyed && !isFinishing) screen.setInstanceVersion(version)
+                }
+            }
+        }
     }
 
     private fun showAccountSwitcher() {
@@ -319,8 +340,85 @@ class MainActivity : ComponentActivity() {
             .setTitle(R.string.accounts)
             .setItems(labels) { _, index -> switchAccount(accounts[index]) }
             .setPositiveButton(R.string.add_account) { _, _ -> showAddAccountDialog() }
+            .setNeutralButton(R.string.remove_account) { _, _ -> showRemoveAccountPicker() }
             .setNegativeButton(R.string.close, null)
             .show()
+    }
+
+    private fun showRemoveAccountPicker() {
+        if (accounts.isEmpty()) {
+            showSetup()
+            return
+        }
+        val labels = accounts.map { "${it.displayLabel()}\n${it.instanceOrigin}" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.remove_account)
+            .setItems(labels) { _, index -> confirmRemoveAccount(accounts[index]) }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun confirmRemoveAccount(account: AccountProfile) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.remove_account)
+            .setMessage(getString(R.string.remove_account_message, account.displayLabel()))
+            .setPositiveButton(R.string.remove_account_confirm) { _, _ -> removeAccount(account) }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun removeAccount(account: AccountProfile) {
+        val removingCurrent = account.id == currentAccount?.id
+        if (removingCurrent) {
+            persistCurrentUrl()
+            nativeAudioPlayer?.dismiss()
+            nativeAudioPlayer = null
+            destroyWebView()
+        }
+        Toast.makeText(this, R.string.removing_account, Toast.LENGTH_SHORT).show()
+
+        backgroundExecutor.execute {
+            // Remote cleanup first: it needs the still-stored token, and any failure
+            // (offline, proxy, pre-2026.9.0 instance without i/revoke-token) must not
+            // block the local deletion below.
+            val outcome = sessionRemoval.revokeRemote(account)
+            val remaining = accountRegistry.remove(account.id)
+            sessionRemoval.deleteLocalSecrets(account.id)
+            if (remaining.isEmpty()) preferences.clearInstance()
+
+            runOnUiThread {
+                if (isDestroyed || isFinishing) return@runOnUiThread
+                WebViewFactory.deleteAccountWebData(account.profileName)
+
+                accounts = remaining
+                val currentGone = currentAccount == null || remaining.none { it.id == currentAccount?.id }
+                if (currentGone) {
+                    val next = remaining.firstOrNull { it.instanceConfig() != null }
+                    if (next == null) {
+                        currentAccount = null
+                        currentInstance = null
+                        showSetup()
+                    } else {
+                        val instance = next.instanceConfig() ?: return@runOnUiThread
+                        accountRegistry.setActive(next.id)
+                        currentAccount = next
+                        currentInstance = instance
+                        preferences.save(instance, currentMode, currentTextScale, currentReactionScale)
+                        showBrowser(next.restoreUrl())
+                    }
+                }
+
+                Toast.makeText(this, R.string.account_removed, Toast.LENGTH_SHORT).show()
+                if (outcome.needsTokenWarning) {
+                    Toast.makeText(
+                        this,
+                        if (outcome.tokenUnsupported) R.string.token_revoke_unsupported
+                        else R.string.token_revoke_failed,
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
     }
 
     private fun showAddAccountDialog() {

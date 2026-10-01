@@ -58,6 +58,37 @@ object MisskeyApi {
         return "{}"
     }
 
+    /**
+     * Misskey 2026.9.0+ `i/revoke-token` body for the token Midroid itself holds.
+     * Access-token authentication may only revoke the token currently in use, so `i`
+     * and `token` intentionally name the same value. Older instances without the
+     * endpoint answer 404 and are classified by [revokeTokenOutcome] as UNSUPPORTED.
+     */
+    fun revokeTokenBody(token: String): String {
+        require(token.isNotBlank()) { "API token must not be blank." }
+        return jsonObject(
+            "i" to token,
+            "token" to token,
+        )
+    }
+
+    fun revokeTokenOutcome(status: Int): RevokeTokenOutcome = when (status) {
+        in 200..299 -> RevokeTokenOutcome.REVOKED
+        // CREDENTIAL_REQUIRED: the token is already invalid/revoked server-side.
+        401 -> RevokeTokenOutcome.ALREADY_GONE
+        // No such endpoint: the instance predates Misskey 2026.9.0.
+        404 -> RevokeTokenOutcome.UNSUPPORTED
+        else -> RevokeTokenOutcome.FAILED
+    }
+
+    fun metaBody(): String = "{}"
+
+    fun parseMetaVersion(raw: String): String? {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty() || trimmed == "null") return null
+        return parseJsonFields(trimmed)["version"]?.takeIf { it.isNotBlank() }
+    }
+
     fun parseSwRegisterResponse(raw: String): SwRegisterResult {
         val fields = parseJsonFields(raw)
         val state = fields["state"]
@@ -264,6 +295,8 @@ object MisskeyApi {
     }
 
     enum class SwRegisterState { SUBSCRIBED, ALREADY_SUBSCRIBED }
+
+    enum class RevokeTokenOutcome { REVOKED, ALREADY_GONE, UNSUPPORTED, FAILED }
 
     data class SwRegisterResult(
         val state: SwRegisterState,

@@ -51,6 +51,25 @@ class AccountRegistry(context: Context) {
         preferences.edit().putString(KEY_ACTIVE_ID, accountId).apply()
     }
 
+    fun remove(accountId: String): List<AccountProfile> {
+        val accounts = loadAccounts()
+        val remaining = accounts.filterNot { it.id == accountId }
+        if (remaining.size == accounts.size) return accounts
+
+        saveAccounts(remaining)
+        val activeId = preferences.getString(KEY_ACTIVE_ID, null)
+        if (remaining.isEmpty()) {
+            preferences.edit().remove(KEY_ACTIVE_ID).apply()
+        } else if (
+            activeId == null ||
+            activeId == accountId ||
+            remaining.none { it.id == activeId }
+        ) {
+            setActive(remaining.first().id)
+        }
+        return remaining
+    }
+
     fun updateLastUrl(accountId: String, rawUrl: String) {
         val accounts = loadAccounts()
         val updated = accounts.map { account ->

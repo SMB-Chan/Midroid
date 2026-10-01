@@ -15,6 +15,15 @@
     <string name="account_added">分離されたアカウントProfileを追加しました。このセッションでMisskeyへログインしてください。</string>
     <string name="account_profile_recovered">保存されていた分離アカウントは現在のWebViewプロバイダーで利用できません。Midroidは安全に既定のアカウントへ切り替えました。</string>
     <string name="cancel">キャンセル</string>
+    <string name="remove_account">アカウントを削除</string>
+    <string name="remove_account_confirm">削除</string>
+    <string name="remove_account_message">%1$sを削除しますか？\n\nMidroidはプッシュ通知の登録を解除し、インスタンスに対してこのアカウントのアクセストークンの失効を要求し（Misskey 2026.9.0以降が必要）、分離されたWebView Profileを含むローカルデータを削除します。</string>
+    <string name="removing_account">アカウントを削除しています…</string>
+    <string name="account_removed">アカウントを削除しました。</string>
+    <string name="token_revoke_failed">インスタンス上のアクセストークンを失効できませんでした。トークンは有効なまま残ります。必要ならMisskeyの設定から失効させてください。</string>
+    <string name="token_revoke_unsupported">このインスタンスはトークン失効（i/revoke-token）に対応していません（Misskey 2026.9.0以降が必要）。トークンは有効なまま残るため、必要ならMisskeyの設定から失効させてください。</string>
+    <string name="instance_version">Misskeyインスタンス：%1$s</string>
+    <string name="instance_version_unavailable">Misskeyインスタンスのバージョン：取得できません</string>
     <string name="power_mode">動作モード</string>
     <string name="power_eco_title">省電力</string>
     <string name="power_eco_description">60Hzを優先し、アニメーションやメディア動作を抑えて消費電力を低減します。</string>

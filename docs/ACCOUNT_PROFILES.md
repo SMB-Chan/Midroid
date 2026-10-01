@@ -40,6 +40,17 @@ The account model treats the instance origin as part of the account identity. Tw
 
 Additional accounts require `WebViewFeature.MULTI_PROFILE`. If the installed Android System WebView does not support it, Midroid keeps the existing/default account usable and refuses to create or open isolated named profiles rather than silently mixing cookies.
 
+## Removal
+
+An account can be removed from the account switcher. Removal is a two-phase cleanup:
+
+1. Best-effort remote cleanup on a background thread, before any local secret is deleted:
+   - `sw/unregister` when the account has a stored push subscription (it needs the still-valid token);
+   - `i/revoke-token` (Misskey 2026.9.0+) to revoke the account's own MiAuth access token. A 404 answer means the instance predates the endpoint and is reported to the user as "unsupported"; the token then stays valid on the instance and the user is told to revoke it from Misskey's own settings. Offline or failed revocation never blocks local deletion.
+2. Local deletion: the account's MiAuth token, push subscription record and AndroidKeyStore-wrapped push receiver keys are deleted, the account is removed from the registry (with the active account reselected), and the account's WebView login state is wiped — isolated profiles through `ProfileStore.deleteProfile()`, the shared Default profile through a cookie/WebStorage wipe that does not touch other isolated profiles.
+
+When the last account is removed, the legacy single-instance preference is also cleared so the next launch starts at first-run setup instead of resurrecting the old instance.
+
 ## Native integrations
 
 Any native action that needs authenticated network state must use the CookieManager associated with the source WebView profile, not the process-global default CookieManager. This currently applies to:

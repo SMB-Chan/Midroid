@@ -6,22 +6,28 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-01
+
+Feature release tracking Misskey 2026.9.x: native account removal with server-side token revocation, instance version visibility, and the Web Push / MiAuth / notification foundation for later stages.
+
+### Added
+
+- Add account removal to the account switcher: on removal Midroid best-effort unregisters push subscriptions and revokes the account's own MiAuth access token through `i/revoke-token` (Misskey 2026.9.0+; older instances are detected and reported), then deletes local tokens, push keys, the registry entry and the account's WebView profile data.
+- Show the configured instance's Misskey server version (from unauthenticated `/api/meta`) on the settings screen next to the WebView provider, so compatibility triage (for example the 2026.9.1 remote-video fix) does not require asking the instance operator.
+- Add the Web Push on-device foundation: P-256 receiver keys, per-account subscription records, relay protocol v1 spec, transport-opaque envelope validation, RFC 8291 decryptor and `sw/register` payload builder (no network or delivery transport yet).
+- Bind push receiver keys to AndroidKeyStore AES-GCM wrapping with per-account rotation and revocation helpers.
+- Add the local notification display path: `POST_NOTIFICATIONS` permission flow, mention/general channels, decrypt-only renderer and tap routing to the owning account origin.
+- Add the MiAuth native auth foundation and sw/* API client: session URL builders, per-account token store, `sw/register`/`unregister`/`show-registration` request builders and response parsers (no automatic enrollment; network calls stay explicit).
+- Add a checked-in Gradle wrapper pinned to 9.6.0 so builds no longer require a manually installed Gradle.
+- Expand JVM unit coverage for audio-request parsing, cache-quota boundaries, navigation state, playback policy, diagnostics, text scaling, token revocation and `meta` parsing.
+- Add SBOM coverage: `docs/SBOM.md` procedure plus `tools/check_advisories.sh` resolving the full release closure against OSV (75 coordinates clean at check time).
+- Add the device regression evidence kit: `docs/DEVICE_REGRESSION.md` unified matrix plus `docs/release-audits/TEMPLATE.md` record form, referenced from RELEASING and the PR template.
+
 ### Fixed
 
 - Harden `InstanceConfig` so instances can only be created through validated parsing; the previous `data class` `copy()` bypass is removed.
 - Correct the Eco power-policy documentation to match the implemented media-gesture behavior.
 - Simplify `NativeAudioHeaderPolicy.sanitize()` to its actually used input and drop the unused download WebView parameter.
-
-### Added
-
-- Add a checked-in Gradle wrapper pinned to 9.6.0 so builds no longer require a manually installed Gradle.
-- Expand JVM unit coverage for audio-request parsing, cache-quota boundaries, navigation state, playback policy, diagnostics and text scaling.
-- Add the Web Push on-device foundation: P-256 receiver keys, per-account subscription records, relay protocol v1 spec, transport-opaque envelope validation, RFC 8291 decryptor and `sw/register` payload builder (no network or delivery transport yet).
-- Bind push receiver keys to AndroidKeyStore AES-GCM wrapping with per-account rotation and revocation helpers.
-- Add the local notification display path: `POST_NOTIFICATIONS` permission flow, mention/general channels, decrypt-only renderer and tap routing to the owning account origin.
-- Add the MiAuth native auth foundation and sw/* API client: session URL builders, per-account token store, `sw/register`/`unregister`/`show-registration` request builders and response parsers (no automatic enrollment; network calls stay explicit).
-- Add SBOM coverage: `docs/SBOM.md` procedure plus `tools/check_advisories.sh` resolving the full release closure against OSV (75 coordinates clean at check time).
-- Add the device regression evidence kit: `docs/DEVICE_REGRESSION.md` unified matrix plus `docs/release-audits/TEMPLATE.md` record form, referenced from RELEASING and the PR template.
 
 ## [0.1.4] - 2026-09-08
 

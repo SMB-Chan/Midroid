@@ -32,6 +32,7 @@ class SetupScreen(
     private val textScaleGroup = RadioGroup(activity)
     private val reactionScaleGroup = RadioGroup(activity)
     private val errorText = TextView(activity)
+    private val instanceVersionText = TextView(activity)
 
     init {
         isFillViewport = true
@@ -189,6 +190,13 @@ class SetupScreen(
             setPadding(0, dp(20), 0, 0)
         }, matchWrap())
 
+        instanceVersionText.apply {
+            visibility = GONE
+            textSize = 12f
+            setPadding(0, dp(4), 0, 0)
+        }
+        content.addView(instanceVersionText, matchWrap())
+
         content.addView(Button(activity).apply {
             text = activity.getString(R.string.copy_diagnostics)
             setOnClickListener { onCopyDiagnostics() }
@@ -204,6 +212,20 @@ class SetupScreen(
         }, matchWrap())
 
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    }
+
+    /**
+     * Publishes the configured instance's server version, fetched asynchronously from
+     * `/api/meta`. Hidden until a result arrives so first-run setup never shows a
+     * placeholder for an instance that is not configured yet.
+     */
+    fun setInstanceVersion(version: String?) {
+        instanceVersionText.text = if (version == null) {
+            activity.getString(R.string.instance_version_unavailable)
+        } else {
+            activity.getString(R.string.instance_version, version)
+        }
+        instanceVersionText.visibility = VISIBLE
     }
 
     private fun powerModeLabel(mode: PowerMode): String {

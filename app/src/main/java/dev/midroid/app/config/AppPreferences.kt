@@ -11,6 +11,14 @@ class AppPreferences(context: Context) {
         return InstanceConfig.parse(origin).getOrNull()
     }
 
+    /**
+     * Drops the legacy single-instance origin. Without this, removing the last account
+     * would let loadOrMigrate() resurrect it as a fresh default account on next launch.
+     */
+    fun clearInstance() {
+        preferences.edit().remove(KEY_INSTANCE).apply()
+    }
+
     fun loadPowerMode(): PowerMode {
         return PowerMode.fromKey(preferences.getString(KEY_POWER_MODE, null))
     }

@@ -7,7 +7,9 @@ import android.os.StatFs
 import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebSettings
+import android.webkit.WebStorage
 import android.webkit.WebView
+import androidx.webkit.ProfileStore
 import androidx.webkit.ServiceWorkerControllerCompat
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
@@ -62,6 +64,39 @@ object WebViewFactory {
                 .getOrElse { CookieManager.getInstance() }
         } else {
             CookieManager.getInstance()
+        }
+    }
+
+    /**
+     * Deletes the WebView-side login state of a removed account. Call on the main thread
+     * after the account's WebView (if any) has been destroyed; ProfileStore refuses to
+     * delete a profile that is still in use. Isolated profiles are deleted through
+     * ProfileStore; the shared Default profile cannot be deleted, so its cookies and
+     * web storage are wiped instead, which does not touch other isolated profiles.
+     */
+    fun deleteAccountWebData(profileName: String?) {
+        if (profileName != null) {
+            if (!WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) return
+            runCatching { ProfileStore.getInstance().deleteProfile(profileName) }
+                .onFailure { error ->
+                    Log.w(
+                        RuntimeDiagnostics.TAG,
+                        "event=profile_delete_failed type=${error.javaClass.simpleName}",
+                    )
+                }
+            return
+        }
+
+        runCatching {
+            val cookies = CookieManager.getInstance()
+            cookies.removeAllCookies(null)
+            cookies.flush()
+            WebStorage.getInstance().deleteAllData()
+        }.onFailure { error ->
+            Log.w(
+                RuntimeDiagnostics.TAG,
+                "event=default_profile_clear_failed type=${error.javaClass.simpleName}",
+            )
         }
     }
 
