@@ -90,4 +90,5 @@
     <string name="push_permission_allow">Allow</string>
     <string name="push_permission_denied">Notifications stay disabled. You can enable them later in Android settings.</string>
     <string name="close">Close</string>
+    <string name="connecting_to_misskey">Connecting to Misskey…</string>
 </resources>

@@ -27,6 +27,15 @@ class RelayProtocolTest {
     }
 
     @Test
+    fun swRegisterEndpointValidationRequiresHttpsAndRejectsUserInfo() {
+        // Equivalent to Misskey 2026.10.0 PushNotificationService.isValidEndpoint
+        // for the endpoints Midroid will register: https, and no URL userinfo.
+        assertNull(RelayProtocol.parseEndpointId("http://relay.example/v1/p/$validId"))
+        assertNull(RelayProtocol.parseEndpointId("https://user:secret@relay.example/v1/p/$validId"))
+        assertEquals(validId, RelayProtocol.parseEndpointId("https://relay.example/v1/p/$validId"))
+    }
+
+    @Test
     fun rejectsWrongPathShape() {
         assertNull(RelayProtocol.parseEndpointId("https://relay.example/v2/p/$validId"))
         assertNull(RelayProtocol.parseEndpointId("https://relay.example/v1/q/$validId"))

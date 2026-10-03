@@ -22,7 +22,7 @@ class WebViewPowerController {
                 )
                 PowerMode.BALANCED -> webView.setRendererPriorityPolicy(
                     WebView.RENDERER_PRIORITY_IMPORTANT,
-                    true,
+                    false,
                 )
                 PowerMode.PERFORMANCE -> webView.setRendererPriorityPolicy(
                     WebView.RENDERER_PRIORITY_IMPORTANT,
@@ -42,9 +42,24 @@ class WebViewPowerController {
     }
 
     fun onBackground(webView: WebView) {
+        // Media stops immediately. JS timers and the renderer stay alive until
+        // [suspendAfterGrace], so a short app switch does not freeze Misskey.
         pauseMedia(webView)
+    }
+
+    fun suspendAfterGrace(webView: WebView) {
         webView.onPause()
         webView.pauseTimers()
+    }
+
+    /** Keep the renderer from being reclaimed while the WebView is detached for settings. */
+    fun holdRenderer(webView: WebView) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView.setRendererPriorityPolicy(
+                WebView.RENDERER_PRIORITY_IMPORTANT,
+                false,
+            )
+        }
     }
 
     fun onPageReady(activity: Activity, webView: WebView, mode: PowerMode) {

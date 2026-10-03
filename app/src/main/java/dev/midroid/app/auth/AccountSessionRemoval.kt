@@ -49,14 +49,21 @@ class AccountSessionRemoval(context: Context) {
             )
         }
 
-        // Unregister push first: sw/unregister needs a still-valid token.
+        // Unregister push before revoking the token. auth/publickey prove
+        // subscription ownership (Misskey 2026.10.0); i scopes the delete to
+        // this user. 2026.9.x ignores the unknown key fields.
         val pushUnregistered = if (subscription == null) {
             true
         } else {
             runCatching {
                 val response = MisskeyApi.postJson(
                     MisskeyApi.endpointUrl(instance.origin, "/api/sw/unregister"),
-                    MisskeyApi.swUnregisterBody(token, subscription.endpoint),
+                    MisskeyApi.swUnregisterBody(
+                        token,
+                        subscription.endpoint,
+                        subscription.authBase64Url,
+                        subscription.p256dhBase64Url,
+                    ),
                     timeoutMs = TIMEOUT_MS,
                 )
                 response.isSuccess()

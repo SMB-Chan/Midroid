@@ -88,6 +88,7 @@ Midroid intentionally does not render arbitrary downloaded documents inside its 
 
 - `application/ogg` is in Misskey's browser-safe MIME list but current `isPreviewable()` only promotes MIME strings starting with `image`, `video`, or `audio`; it can therefore fall back to the download banner.
 - Federated videos that fail to start (the request hangs or the player stays at 0:00) can be a server-side Misskey bug fixed in 2026.9.1: Range requests for uncached remote files returned an incorrect `Content-Length`, which prevented video playback entirely. When diagnosing remote-media playback, check the instance version first (shown on Midroid's settings screen); instances on 2026.9.1 or later have this fix.
+- Misskey 2026.10.0 always sends `Accept-Ranges` and `Content-Length` for attachment delivery and cleans up Range handling. Midroid's native audio fallback is unaffected: it still plays a validated HTTPS source through Android `MediaPlayer` and does not depend on Misskey's Range response shape.
 - A browser-safe container may contain a codec/profile unsupported by the installed Android System WebView. Android `MediaPlayer` support can also differ by device/codec stack.
 - Cleartext (`http://`) attachment resources are intentionally not loaded inside Midroid.
 - Session-protected media/downloads that require browser cookies may not work through the native/system fallback because those credentials are intentionally not forwarded across redirect-capable clients.

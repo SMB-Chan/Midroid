@@ -38,12 +38,30 @@ object MisskeyApi {
         )
     }
 
-    fun swUnregisterBody(token: String?, endpoint: String): String {
+    /**
+     * Misskey 2026.10.0 `sw/unregister` body.
+     *
+     * `auth` and `publickey` are required and prove ownership of the subscription
+     * (the same values as `sw/register`). `i` is optional: when present it scopes
+     * the delete to that user. Misskey 2026.9.x ignores the unknown key fields.
+     */
+    fun swUnregisterBody(token: String?, endpoint: String, auth: String, publickey: String): String {
         require(endpoint.isNotBlank()) { "Endpoint must not be blank." }
+        require(auth.isNotBlank()) { "Auth secret must not be blank." }
+        require(publickey.isNotBlank()) { "Receiver public key must not be blank." }
         return if (token.isNullOrBlank()) {
-            jsonObject("endpoint" to endpoint)
+            jsonObject(
+                "endpoint" to endpoint,
+                MisskeyPushRegistration.FIELD_AUTH to auth,
+                MisskeyPushRegistration.FIELD_PUBLIC_KEY to publickey,
+            )
         } else {
-            jsonObject("i" to token, "endpoint" to endpoint)
+            jsonObject(
+                "i" to token,
+                "endpoint" to endpoint,
+                MisskeyPushRegistration.FIELD_AUTH to auth,
+                MisskeyPushRegistration.FIELD_PUBLIC_KEY to publickey,
+            )
         }
     }
 

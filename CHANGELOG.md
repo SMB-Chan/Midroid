@@ -6,6 +6,19 @@ The project follows semantic versioning for public release tags (`vMAJOR.MINOR.P
 
 ## [Unreleased]
 
+### Added
+
+- Support Misskey 2026.10.0 `sw/unregister`. Account removal always sends the subscription `auth` and `publickey` (the same values as `sw/register`) so the server can prove ownership, and still sends `i` when a token is available to scope the delete to that user. Misskey 2026.9.x ignores the extra fields.
+
+### Changed
+
+- Balanced mode keeps the WebView renderer at important priority even when the activity is hidden.
+- Backgrounding pauses media immediately, then waits about 30 seconds before `WebView.onPause()` and `pauseTimers()`. A short app switch no longer freezes Misskey's JavaScript timers.
+- Settings hide the Misskey WebView instead of destroying it. Saving the same account reapplies text zoom, reaction scale, and power settings without reloading. The renderer is held while settings are open.
+- Opening Midroid from a notification loads that URL once, instead of also loading the previous page.
+- Show a lightweight connecting overlay until the first page finishes.
+- Diagnostics read a WebView package version fetched once in the background, instead of looking it up on the main thread for every log line.
+
 ## [0.2.0] - 2026-10-01
 
 Feature release tracking Misskey 2026.9.x: native account removal with server-side token revocation, instance version visibility, and the Web Push / MiAuth / notification foundation for later stages.

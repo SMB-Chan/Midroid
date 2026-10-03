@@ -90,4 +90,5 @@
     <string name="push_permission_allow">許可する</string>
     <string name="push_permission_denied">通知は無効のままです。後でAndroidの設定から有効にできます。</string>
     <string name="close">閉じる</string>
+    <string name="connecting_to_misskey">Misskeyに接続中…</string>
 </resources>

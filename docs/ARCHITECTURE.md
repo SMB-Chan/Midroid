@@ -30,7 +30,7 @@ HTTP cache quota growth is adaptive rather than unconditional. Midroid does not 
 
 ## Renderer recovery
 
-Eco and Balanced allow an invisible renderer to be treated as lower priority by Android. Because the OS may reclaim that renderer under memory pressure, `onRenderProcessGone` is handled as a normal recovery path: the dead WebView is destroyed, a fresh one is created, and the last committed URL is restored.
+Eco allows an invisible renderer to be treated as lower priority by Android. Balanced and Performance keep important renderer priority even when hidden. Because the OS may still reclaim a renderer under memory pressure, `onRenderProcessGone` is handled as a normal recovery path: the dead WebView is destroyed, a fresh one is created, and the last committed URL is restored. If that happens while settings are open, the WebView is dropped quietly instead of covering the settings screen.
 
 ## Deliberate limitations
 
