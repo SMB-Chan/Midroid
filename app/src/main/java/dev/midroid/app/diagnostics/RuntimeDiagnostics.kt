@@ -11,6 +11,24 @@ import dev.midroid.app.power.PowerMode
 object RuntimeDiagnostics {
     const val TAG = "MidroidDiag"
 
+    @Volatile
+    private var webViewPackageLabel: String = "unknown"
+
+    /**
+     * [WebView.getCurrentWebViewPackage] is a binder lookup. Call this once off the
+     * main thread at startup; log lines only read [webViewPackageLabel].
+     */
+    fun prefetchWebViewPackage() {
+        webViewPackageLabel = runCatching {
+            val webViewPackage = WebView.getCurrentWebViewPackage()
+            if (webViewPackage == null) {
+                "unknown"
+            } else {
+                "${webViewPackage.packageName}@${webViewPackage.versionName ?: "unknown"}"
+            }
+        }.getOrDefault("unknown")
+    }
+
     fun logAppStart(context: Context, mode: PowerMode, rawUrl: String?) {
         Log.i(TAG, "event=app_start ${baseFields(context, mode, rawUrl)}")
     }
@@ -43,12 +61,7 @@ object RuntimeDiagnostics {
     }
 
     private fun baseFields(context: Context, mode: PowerMode, rawUrl: String?): String {
-        val webViewPackage = WebView.getCurrentWebViewPackage()
-        val webView = if (webViewPackage == null) {
-            "unknown"
-        } else {
-            "${webViewPackage.packageName}@${webViewPackage.versionName ?: "unknown"}"
-        }
+        val webView = webViewPackageLabel
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
         val powerSave = powerManager?.isPowerSaveMode ?: false
 

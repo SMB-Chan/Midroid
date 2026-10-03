@@ -1,5 +1,6 @@
 package dev.midroid.app.auth
 
+import dev.midroid.app.push.RelayProtocol
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -23,14 +24,64 @@ class MisskeyApiTest {
     }
 
     @Test
-    fun swUnregisterBodyOmitsTokenWhenAbsent() {
-        val authed = MisskeyApi.parseJsonFields(MisskeyApi.swUnregisterBody("TOKEN123", endpoint))
+    fun swUnregisterBodyRequiresKeysAndOmitsTokenWhenAbsent() {
+        val authed = MisskeyApi.parseJsonFields(
+            MisskeyApi.swUnregisterBody("TOKEN123", endpoint, auth, p256dh),
+        )
         assertEquals("TOKEN123", authed["i"])
         assertEquals(endpoint, authed["endpoint"])
+        assertEquals(auth, authed["auth"])
+        assertEquals(p256dh, authed["publickey"])
 
-        val anonymous = MisskeyApi.parseJsonFields(MisskeyApi.swUnregisterBody(null, endpoint))
+        val anonymous = MisskeyApi.parseJsonFields(
+            MisskeyApi.swUnregisterBody(null, endpoint, auth, p256dh),
+        )
         assertNull(anonymous["i"])
         assertEquals(endpoint, anonymous["endpoint"])
+        assertEquals(auth, anonymous["auth"])
+        assertEquals(p256dh, anonymous["publickey"])
+
+        val blankToken = MisskeyApi.parseJsonFields(
+            MisskeyApi.swUnregisterBody("  ", endpoint, auth, p256dh),
+        )
+        assertNull(blankToken["i"])
+        assertEquals(auth, blankToken["auth"])
+        assertEquals(p256dh, blankToken["publickey"])
+    }
+
+    @Test
+    fun swUnregisterBodyRejectsBlankAuthOrPublicKey() {
+        try {
+            MisskeyApi.swUnregisterBody("TOKEN123", endpoint, " ", p256dh)
+            throw AssertionError("Expected IllegalArgumentException.")
+        } catch (error: IllegalArgumentException) {
+            assertTrue(error.message!!.contains("Auth"))
+        }
+        try {
+            MisskeyApi.swUnregisterBody(null, endpoint, auth, "")
+            throw AssertionError("Expected IllegalArgumentException.")
+        } catch (error: IllegalArgumentException) {
+            assertTrue(error.message!!.contains("public key"))
+        }
+    }
+
+    @Test
+    fun swRegisterEndpointRequiresHttpsAndRejectsUserInfo() {
+        val cleartext = endpoint.replace("https://", "http://")
+        val withUserInfo = endpoint.replace("https://", "https://user:secret@")
+        // Misskey 2026.10.0 PushNotificationService.isValidEndpoint requires https
+        // and rejects URL userinfo. Midroid enforces that in RelayProtocol.parseEndpointId,
+        // which sw/register consults before building a body.
+        assertNull(RelayProtocol.parseEndpointId(cleartext))
+        assertNull(RelayProtocol.parseEndpointId(withUserInfo))
+        for (bad in listOf(cleartext, withUserInfo)) {
+            try {
+                MisskeyApi.swRegisterBody("TOKEN123", bad, p256dh, auth)
+                throw AssertionError("Expected IllegalArgumentException.")
+            } catch (error: IllegalArgumentException) {
+                assertTrue(error.message!!.contains("relay"))
+            }
+        }
     }
 
     @Test

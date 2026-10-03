@@ -2,15 +2,15 @@
 
 Midroid distinguishes **visible** from merely **resumed** activity state.
 
-The WebView enters deep suspension from `Activity.onStop()`, not `onPause()`. This avoids freezing a still-visible Misskey surface in Android multi-window. A fully covering system activity such as some file pickers can still drive Midroid to `onStop()`, which is acceptable because the Misskey surface is then no longer visible.
+The WebView enters deep suspension from `Activity.onStop()`, not `onPause()`, after a grace period of about 30 seconds. Media pauses immediately. `WebView.onPause()` and `pauseTimers()` wait so a short app switch does not freeze Misskey's JavaScript timers. `onStart()` cancels a pending suspension. This avoids freezing a still-visible Misskey surface in Android multi-window. A fully covering system activity such as some file pickers can still drive Midroid to `onStop()`, which is acceptable because the Misskey surface is then no longer visible.
 
 ## State transitions
 
 | Android activity state | Midroid action |
 | --- | --- |
-| `onStart()` | Resume WebView timers and renderer activity, then re-apply the selected document and refresh-rate policy. |
+| `onStart()` | Cancel the pending background suspension. Resume WebView timers and renderer activity, then re-apply the selected document and refresh-rate policy. |
 | `onResume()` / `onPause()` | No deep WebView suspension. Android may pause an activity while it is still visible. |
-| `onStop()` | Pause media, call `WebView.onPause()`, then `pauseTimers()`. |
+| `onStop()` | Pause media immediately. About 30 seconds later, if still stopped, call `WebView.onPause()`, then `pauseTimers()`. |
 | renderer reclaimed while hidden | Keep the last known safe URL and recreate the WebView when the activity becomes visible again. |
 
 This policy favors correctness first: background work is aggressively suspended only once the activity is no longer visible, preserving split-screen behavior.

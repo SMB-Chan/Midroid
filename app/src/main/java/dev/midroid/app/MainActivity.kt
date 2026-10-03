@@ -12,8 +12,11 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -23,6 +26,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.PopupMenu
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -62,6 +66,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var accountRegistry: AccountRegistry
     private val sessionRemoval by lazy { AccountSessionRemoval(applicationContext) }
     private val backgroundExecutor = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val powerController = WebViewPowerController()
     private val navigationState = NavigationState()
     private val uiTuner = MisskeyUiTuner()
@@ -79,6 +84,9 @@ class MainActivity : ComponentActivity() {
     private var pendingUrl: String? = null
     private var lastKnownUrl: String? = null
     private var visibleToUser = false
+    private var settingsOpen = false
+    private var loadingOverlay: View? = null
+    private var pendingHiddenSuspend: Runnable? = null
     private var fileCallback: ValueCallback<Array<Uri>>? = null
 
     private val fileChooserLauncher = registerForActivityResult(
@@ -100,6 +108,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        backgroundExecutor.execute {
+            RuntimeDiagnostics.prefetchWebViewPackage()
+        }
         preferences = AppPreferences(this)
         accountRegistry = AccountRegistry(this)
         installBackHandler()
@@ -121,7 +132,10 @@ class MainActivity : ComponentActivity() {
         if (account == null || currentInstance == null) {
             showSetup()
         } else {
-            showBrowser(account.restoreUrl())
+            // Exactly one load. A push intent only sets pendingUrl; it must not
+            // showBrowser before this, or the stale last URL loads as well.
+            showBrowser(pendingUrl ?: account.restoreUrl())
+            pendingUrl = null
         }
     }
 
@@ -147,7 +161,9 @@ class MainActivity : ComponentActivity() {
         accountRegistry.setActive(account.id)
         accountRegistry.updateLastUrl(account.id, targetUrl)
         pendingUrl = targetUrl
-        if (webView == null || visibleToUser) {
+        // webView == null means cold start (or settings quietly dropped the view).
+        // Leave pendingUrl for the single onCreate load, or the next showBrowser.
+        if (webView != null && visibleToUser && !settingsOpen) {
             showBrowser(targetUrl)
             pendingUrl = null
         }
@@ -173,6 +189,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        cancelHiddenSuspend()
         visibleToUser = true
         nativeAudioPlayer?.onHostStarted()
         RuntimeDiagnostics.logLifecycle(
@@ -182,7 +199,7 @@ class MainActivity : ComponentActivity() {
             navigationState.currentUrl ?: lastKnownUrl ?: currentInstance?.origin,
         )
 
-        if (webView == null && pendingUrl != null && currentInstance != null) {
+        if (!settingsOpen && webView == null && pendingUrl != null && currentInstance != null) {
             showBrowser(pendingUrl!!)
             pendingUrl = null
             return
@@ -200,7 +217,10 @@ class MainActivity : ComponentActivity() {
             navigationState.currentUrl ?: lastKnownUrl ?: currentInstance?.origin,
         )
         nativeAudioPlayer?.onHostStopped()
-        webView?.let { powerController.onBackground(it) }
+        webView?.let { view ->
+            powerController.onBackground(view)
+            scheduleHiddenSuspend()
+        }
         visibleToUser = false
         super.onStop()
     }
@@ -216,6 +236,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         persistCurrentUrl()
+        cancelHiddenSuspend()
         nativeAudioPlayer?.dismiss()
         nativeAudioPlayer = null
         destroyWebView()
@@ -226,7 +247,7 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val active = webView
-                if (active != null && handleInterruptibleWebBack(active)) {
+                if (!settingsOpen && active != null && handleInterruptibleWebBack(active)) {
                     return
                 }
 
@@ -265,9 +286,17 @@ class MainActivity : ComponentActivity() {
         persistCurrentUrl()
         nativeAudioPlayer?.dismiss()
         nativeAudioPlayer = null
-        destroyWebView()
 
         val editingExisting = currentAccount != null
+        if (editingExisting && webView != null) {
+            // Instance URL is not editable, so the same account can reuse this WebView.
+            // Hide it by replacing the content view; do not destroy it.
+            settingsOpen = true
+            webView?.let { powerController.holdRenderer(it) }
+        } else {
+            settingsOpen = false
+            destroyWebView()
+        }
         val screen = SetupScreen(
             activity = this,
             initialUrl = currentInstance?.origin.orEmpty(),
@@ -295,7 +324,18 @@ class MainActivity : ComponentActivity() {
                     currentTextScale = textScale
                     currentReactionScale = reactionScale
                     preferences.save(instance, mode, textScale, reactionScale)
-                    showBrowser(account.restoreUrl())
+                    val pushTarget = pendingUrl
+                    pendingUrl = null
+                    if (editingExisting && webView != null && pushTarget == null) {
+                        showBrowser(account.restoreUrl(), reuseWebView = true)
+                    } else {
+                        val target = pushTarget ?: if (editingExisting) {
+                            lastKnownUrl ?: account.restoreUrl()
+                        } else {
+                            account.restoreUrl()
+                        }
+                        showBrowser(target)
+                    }
                     null
                 },
                 onFailure = { error ->
@@ -568,7 +608,8 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, "Diagnostics copied.", Toast.LENGTH_SHORT).show()
     }
 
-    private fun showBrowser(url: String) {
+    private fun showBrowser(url: String, reuseWebView: Boolean = false) {
+        settingsOpen = false
         val account = currentAccount ?: return
         val instance = account.instanceConfig() ?: return
         currentInstance = instance
@@ -582,58 +623,76 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        destroyWebView()
+        val reusing = reuseWebView && webView != null
+        if (!reusing) {
+            destroyWebView()
+        }
         val safeUrl = url.takeIf(instance::owns) ?: instance.origin
-        lastKnownUrl = safeUrl
-        navigationState.reset(safeUrl)
+        if (!reusing) {
+            lastKnownUrl = safeUrl
+            navigationState.reset(safeUrl)
+        }
+
+        val created = if (reusing) {
+            webView ?: return
+        } else {
+            runCatching {
+                WebViewFactory.create(this, account.profileName)
+            }.getOrElse {
+                browserRoot = null
+                showWebViewRecovery(getString(R.string.webview_recovery_provider_error))
+                return
+            }
+        }
+        if (!reusing) webView = created
+        (created.parent as? ViewGroup)?.removeView(created)
+
+        applyTextScale(created)
+        powerController.configure(this, created, currentMode)
+        if (reusing) {
+            uiTuner.applyReactionScale(created, currentReactionScale)
+            mediaFallbackBridge.install(created)
+        } else {
+            mediaFallbackBridge.attach(created, instance) { request ->
+                playNativeAudio(request, created)
+            }
+        }
 
         val root = EdgeSwipeMenuLayout(this)
         browserRoot = root
 
-        val created = runCatching {
-            WebViewFactory.create(this, account.profileName)
-        }.getOrElse {
-            browserRoot = null
-            showWebViewRecovery(getString(R.string.webview_recovery_provider_error))
-            return
-        }
-        webView = created
-
-        applyTextScale(created)
-        powerController.configure(this, created, currentMode)
-        mediaFallbackBridge.attach(created, instance) { request ->
-            playNativeAudio(request, created)
-        }
-
-        val externalNavigator = ExternalNavigator(this)
-        created.webViewClient = MidroidWebViewClient(
-            instance = instance,
-            externalNavigator = externalNavigator,
-            onMainFrameLoadStarted = { navigationState.onPageStarted(it) },
-            onMainFrameCommitted = { committedUrl ->
-                navigationState.onPageCommitted(committedUrl)
-                lastKnownUrl = committedUrl
-                accountRegistry.updateLastUrl(account.id, committedUrl)
-            },
-            onHistoryChanged = { historyUrl ->
-                navigationState.onHistoryChanged(historyUrl)
-                accountRegistry.updateLastUrl(account.id, historyUrl)
-                uiTuner.applyReactionScale(created, currentReactionScale)
-                mediaFallbackBridge.install(created)
-            },
-            onPageReady = { view, finishedUrl ->
-                navigationState.onPageFinished(finishedUrl)
-                RuntimeDiagnostics.logPageReady(this, currentMode, navigationState.currentUrl ?: lastKnownUrl)
-                powerController.onPageReady(this, view, currentMode)
-                uiTuner.applyReactionScale(view, currentReactionScale)
-                mediaFallbackBridge.install(view)
-            },
-            onNativeAudioRequested = { request -> playNativeAudio(request, created) },
-            onRendererGone = ::handleRendererGone,
-        )
-        created.webChromeClient = MidroidWebChromeClient(::launchFileChooser)
-        created.setDownloadListener { downloadUrl, userAgent, contentDisposition, mimeType, _ ->
-            enqueueDownload(downloadUrl, userAgent, contentDisposition, mimeType)
+        if (!reusing) {
+            val externalNavigator = ExternalNavigator(this)
+            created.webViewClient = MidroidWebViewClient(
+                instance = instance,
+                externalNavigator = externalNavigator,
+                onMainFrameLoadStarted = { navigationState.onPageStarted(it) },
+                onMainFrameCommitted = { committedUrl ->
+                    navigationState.onPageCommitted(committedUrl)
+                    lastKnownUrl = committedUrl
+                    accountRegistry.updateLastUrl(account.id, committedUrl)
+                },
+                onHistoryChanged = { historyUrl ->
+                    navigationState.onHistoryChanged(historyUrl)
+                    accountRegistry.updateLastUrl(account.id, historyUrl)
+                    uiTuner.applyReactionScale(created, currentReactionScale)
+                    mediaFallbackBridge.install(created)
+                },
+                onPageReady = { view, finishedUrl ->
+                    hideLoadingOverlay()
+                    navigationState.onPageFinished(finishedUrl)
+                    RuntimeDiagnostics.logPageReady(this, currentMode, navigationState.currentUrl ?: lastKnownUrl)
+                    powerController.onPageReady(this, view, currentMode)
+                    uiTuner.applyReactionScale(view, currentReactionScale)
+                    mediaFallbackBridge.install(view)
+                },
+                onNativeAudioRequested = { request -> playNativeAudio(request, created) },
+                onRendererGone = ::handleRendererGone,
+            )
+            created.webChromeClient = MidroidWebChromeClient(::launchFileChooser)
+            created.setDownloadListener { downloadUrl, userAgent, contentDisposition, mimeType, _ ->
+                enqueueDownload(downloadUrl, userAgent, contentDisposition, mimeType)
+            }
         }
 
         val requestNativeAudio = {
@@ -676,8 +735,13 @@ class MainActivity : ComponentActivity() {
             ),
         )
 
+        if (reusing) {
+            loadingOverlay = null
+        } else {
+            showLoadingOverlay(root)
+        }
         setInsetContentView(root)
-        created.loadUrl(safeUrl)
+        if (!reusing) created.loadUrl(safeUrl)
         if (visibleToUser) powerController.onForeground(this, created, currentMode)
     }
 
@@ -717,10 +781,15 @@ class MainActivity : ComponentActivity() {
         val restoreUrl = navigationState.lastCommittedUrl ?: lastKnownUrl ?: currentInstance?.origin
         RuntimeDiagnostics.logRendererGone(this, currentMode, restoreUrl, detail)
 
-        val root = browserRoot
-        root?.removeView(deadView)
-        if (webView === deadView) webView = null
-        deadView.destroy()
+        if (settingsOpen) {
+            // Settings owns the screen. Quietly drop the WebView so the next
+            // showBrowser recreates it instead of covering the settings UI.
+            releaseDeadWebView(deadView)
+            pendingUrl = restoreUrl
+            return
+        }
+
+        releaseDeadWebView(deadView)
 
         pendingUrl = restoreUrl
         val reason = if (detail.didCrash()) "Web renderer crashed." else "Web renderer was reclaimed."
@@ -730,6 +799,14 @@ class MainActivity : ComponentActivity() {
             showBrowser(restoreUrl)
             pendingUrl = null
         }
+    }
+
+    private fun releaseDeadWebView(deadView: WebView) {
+        (deadView.parent as? ViewGroup)?.removeView(deadView)
+        if (webView === deadView) webView = null
+        if (browserRoot != null && browserRoot?.childCount == 0) browserRoot = null
+        loadingOverlay = null
+        deadView.destroy()
     }
 
     private fun launchFileChooser(
@@ -790,6 +867,53 @@ class MainActivity : ComponentActivity() {
         active.destroy()
         webView = null
         browserRoot = null
+        loadingOverlay = null
+    }
+
+    private fun showLoadingOverlay(root: FrameLayout) {
+        hideLoadingOverlay()
+        val overlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(0xFFF7F2FA.toInt())
+            addView(ProgressBar(this@MainActivity))
+            addView(TextView(this@MainActivity).apply {
+                text = getString(R.string.connecting_to_misskey)
+                gravity = Gravity.CENTER_HORIZONTAL
+                setPadding(dp(24), dp(16), dp(24), 0)
+            })
+        }
+        root.addView(
+            overlay,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        loadingOverlay = overlay
+    }
+
+    private fun hideLoadingOverlay() {
+        val overlay = loadingOverlay ?: return
+        (overlay.parent as? ViewGroup)?.removeView(overlay)
+        loadingOverlay = null
+    }
+
+    private fun scheduleHiddenSuspend() {
+        cancelHiddenSuspend()
+        val task = Runnable {
+            pendingHiddenSuspend = null
+            if (!visibleToUser) {
+                webView?.let { powerController.suspendAfterGrace(it) }
+            }
+        }
+        pendingHiddenSuspend = task
+        mainHandler.postDelayed(task, HIDDEN_GRACE_MS)
+    }
+
+    private fun cancelHiddenSuspend() {
+        pendingHiddenSuspend?.let { mainHandler.removeCallbacks(it) }
+        pendingHiddenSuspend = null
     }
 
     private fun setInsetContentView(content: View) {
@@ -824,4 +948,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    companion object {
+        private const val HIDDEN_GRACE_MS = 30_000L
+    }
 }
